@@ -1,0 +1,13 @@
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archivos de referencia (no necesarios en producción)
+calculadora-contrato.html
+calculadora-nomina-empleados.html
+Liquidacion.html
+app.jsx

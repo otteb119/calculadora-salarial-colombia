@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calculadora Salarial Colombia 2026</title>
+    <meta name="description" content="Calculadora de salario neto, contratista independiente y liquidación laboral para Colombia 2026. Incluye deducciones, prestaciones sociales e indemnización.">
+    <meta name="robots" content="index, follow">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta name="referrer" content="no-referrer">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧮</text></svg>">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -53,16 +59,42 @@ function EmpleadoContrato() {
     const [tipoContrato, setTipoContrato] = useState('indefinido');
     const [duracion, setDuracion] = useState('12');
     const [nivelARL, setNivelARL] = useState(1);
-    const [bonConst, setBonConst] = useState('');
-    const [bonNoConst, setBonNoConst] = useState('');
-    const [hExtra, setHExtra] = useState('0');
-    const [tipoHE, setTipoHE] = useState('diurna');
+    const [bonos, setBonos] = useState([]);
+    const [descuentos, setDescuentos] = useState([]);
+    const [horasExtras, setHorasExtras] = useState([]);
+
+    const agregarDescuento = () => setDescuentos([...descuentos, {id:Date.now(), nombre:'', tipo:'fijo', valor:''}]);
+    const eliminarDescuento = (id) => setDescuentos(descuentos.filter(d=>d.id!==id));
+    const actualizarDescuento = (id, campo, val) => setDescuentos(descuentos.map(d=>d.id===id?{...d,[campo]:val}:d));
+    const totalDescNomina = () => descuentos.reduce((sum,d) => sum + (d.tipo==='porcentaje' ? unformat(salario)*(parseFloat(d.valor)||0)/100 : unformat(d.valor)), 0);
+
+    const agregarHoraExtra = () => setHorasExtras([...horasExtras, {id:Date.now(), horas:'', tipo:'diurna'}]);
+    const eliminarHoraExtra = (id) => setHorasExtras(horasExtras.filter(h=>h.id!==id));
+    const actualizarHoraExtra = (id, campo, val) => setHorasExtras(horasExtras.map(h=>h.id===id?{...h,[campo]:val}:h));
+
     const [hDia, setHDia] = useState('8');
     const [dSemana, setDSemana] = useState('5');
     const [mostrar, setMostrar] = useState(false);
 
-    const sBase = () => unformat(salario) + unformat(bonConst);
-    const heVal = () => { const vh=sBase()/240; const r={diurna:0.25,nocturna:0.75,'dominical-diurna':1,'dominical-nocturna':1.5}; return vh*(1+r[tipoHE])*(parseInt(hExtra)||0); };
+    const agregarBono = () => setBonos([...bonos, {id:Date.now(), tipo:'porcentaje', valor:'', constitutivo:true}]);
+    const eliminarBono = (id) => setBonos(bonos.filter(b=>b.id!==id));
+    const actualizarBono = (id, campo, val) => setBonos(bonos.map(b=>b.id===id?{...b,[campo]:val}:b));
+
+    const totalBonosConst = () => bonos.filter(b=>b.constitutivo).reduce((sum,b) => sum + (b.tipo==='porcentaje' ? unformat(salario)*(parseFloat(b.valor)||0)/100 : unformat(b.valor)), 0);
+    const totalBonosNoConst = () => bonos.filter(b=>!b.constitutivo).reduce((sum,b) => sum + (b.tipo==='porcentaje' ? unformat(salario)*(parseFloat(b.valor)||0)/100 : unformat(b.valor)), 0);
+
+    const sBase = () => unformat(salario) + totalBonosConst();
+    const heVal = () => {
+        const vh = sBase()/240;
+        const r = {diurna:0.25, nocturna:0.75, 'dominical-diurna':1, 'dominical-nocturna':1.5};
+        return horasExtras.reduce((sum, h) => sum + vh*(1+r[h.tipo])*(parseInt(h.horas)||0), 0);
+    };
+    const heDetalle = () => {
+        const vh = sBase()/240;
+        const r = {diurna:0.25, nocturna:0.75, 'dominical-diurna':1, 'dominical-nocturna':1.5};
+        const nombres = {diurna:'Diurna (+25%)', nocturna:'Nocturna (+75%)', 'dominical-diurna':'Dom. Diurna (+100%)', 'dominical-nocturna':'Dom. Nocturna (+150%)'};
+        return horasExtras.map(h => ({...h, valor: vh*(1+r[h.tipo])*(parseInt(h.horas)||0), nombre: nombres[h.tipo]}));
+    };
     const tDev = () => sBase() + heVal();
     const aux = () => sBase() <= CONFIG.TOPE_AUXILIO ? CONFIG.AUXILIO_TRANSPORTE : 0;
     const sEmp = () => tDev() * CONFIG.SALUD_EMPLEADO;
@@ -70,7 +102,7 @@ function EmpleadoContrato() {
     const fsp = () => calcularFSP(tDev());
     const ret = () => { const a=sEmp()+pEmp()+fsp(); const n=tDev()-a; const re=Math.min(n*0.25,240*CONFIG.UVT); return calcRetencion(Math.max(0,n-re)); };
     const tDed = () => sEmp()+pEmp()+fsp()+ret();
-    const neto = () => tDev()+aux()+unformat(bonNoConst)-tDed();
+    const neto = () => tDev()+aux()+totalBonosNoConst()-tDed()-totalDescNomina();
     const sEmpr = () => tDev()*CONFIG.SALUD_EMPLEADOR;
     const pEmpr = () => tDev()*CONFIG.PENSION_EMPLEADOR;
     const arl = () => tDev()*CONFIG.PORCENTAJES_ARL[nivelARL];
@@ -111,22 +143,118 @@ function EmpleadoContrato() {
                     <input type="text" value={salario} onChange={e=>setSalario(formatInput(e.target.value))} className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-emerald-500 focus:outline-none"/></div>
                     <p className="text-sm text-gray-500 mt-1">Salario mínimo 2026: $1.750.905</p>
                 </div>
+                <div className="mb-5">
+                    <label className="block text-gray-700 font-semibold mb-3">Bonificaciones</label>
+                    <div className="space-y-3">
+                        {bonos.map((bono, idx) => (
+                            <div key={bono.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-sm font-semibold text-gray-600">Bono {idx+1}</span>
+                                    <button onClick={()=>eliminarBono(bono.id)} className="text-red-500 text-sm hover:text-red-700">✕ Eliminar</button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">Tipo</label>
+                                        <select value={bono.tipo} onChange={e=>actualizarBono(bono.id,'tipo',e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-emerald-500 focus:outline-none">
+                                            <option value="porcentaje">% del salario</option>
+                                            <option value="fijo">Valor fijo ($)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">{bono.tipo==='porcentaje'?'Porcentaje (%)':'Valor mensual ($)'}</label>
+                                        {bono.tipo==='porcentaje' ? (
+                                            <input type="number" value={bono.valor} onChange={e=>actualizarBono(bono.id,'valor',e.target.value)} min="0" max="100" placeholder="15" className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-emerald-500 focus:outline-none"/>
+                                        ) : (
+                                            <div className="relative"><span className="absolute left-2 top-2 text-gray-500 text-sm">$</span><input type="text" value={bono.valor} onChange={e=>actualizarBono(bono.id,'valor',formatInput(e.target.value))} placeholder="500.000" className="w-full pl-6 pr-2 p-2 border border-gray-300 rounded-lg text-sm focus:border-emerald-500 focus:outline-none"/></div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">¿Constitutivo?</label>
+                                        <select value={bono.constitutivo?'si':'no'} onChange={e=>actualizarBono(bono.id,'constitutivo',e.target.value==='si')} className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-emerald-500 focus:outline-none">
+                                            <option value="si">Sí - Constitutivo</option>
+                                            <option value="no">No - NO Constitutivo</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <p className="text-xs mt-2 text-gray-400">{bono.constitutivo ? '✅ Tiene descuentos, afecta prestaciones y liquidación' : '🎁 Sin descuentos, se recibe completo, no afecta prestaciones'}</p>
+                            </div>
+                        ))}
+                        <button onClick={agregarBono} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-emerald-400 hover:text-emerald-500 transition-colors text-sm font-semibold">+ Agregar bonificación</button>
+                    </div>
+                </div>
+                <div className="mb-5">
+                    <label className="block text-gray-700 font-semibold mb-3">Descuentos de Nómina</label>
+                    <div className="space-y-3">
+                        {descuentos.map((desc, idx) => (
+                            <div key={desc.id} className="p-4 bg-red-50/50 rounded-lg border border-red-100">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-sm font-semibold text-gray-600">Descuento {idx+1}</span>
+                                    <button onClick={()=>eliminarDescuento(desc.id)} className="text-red-500 text-sm hover:text-red-700">✕ Eliminar</button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">Concepto</label>
+                                        <input type="text" value={desc.nombre} onChange={e=>actualizarDescuento(desc.id,'nombre',e.target.value)} placeholder="Ej: Libranza, Parqueadero..." className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-red-400 focus:outline-none"/>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">Tipo</label>
+                                        <select value={desc.tipo} onChange={e=>actualizarDescuento(desc.id,'tipo',e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-red-400 focus:outline-none">
+                                            <option value="fijo">Valor fijo ($)</option>
+                                            <option value="porcentaje">% del salario</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">{desc.tipo==='porcentaje'?'Porcentaje (%)':'Valor mensual ($)'}</label>
+                                        {desc.tipo==='porcentaje' ? (
+                                            <input type="number" value={desc.valor} onChange={e=>actualizarDescuento(desc.id,'valor',e.target.value)} min="0" max="100" placeholder="5" className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-red-400 focus:outline-none"/>
+                                        ) : (
+                                            <div className="relative"><span className="absolute left-2 top-2 text-gray-500 text-sm">$</span><input type="text" value={desc.valor} onChange={e=>actualizarDescuento(desc.id,'valor',formatInput(e.target.value))} placeholder="200.000" className="w-full pl-6 pr-2 p-2 border border-gray-300 rounded-lg text-sm focus:border-red-400 focus:outline-none"/></div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        <button onClick={agregarDescuento} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-red-400 hover:text-red-500 transition-colors text-sm font-semibold">+ Agregar descuento de nómina</button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Libranzas, parqueadero, cooperativas, embargos, seguros, etc.</p>
+                </div>
+                <div className="mb-5">
+                    <label className="block text-gray-700 font-semibold mb-3">Horas Extra</label>
+                    <div className="space-y-3">
+                        {horasExtras.map((he, idx) => (
+                            <div key={he.id} className="p-4 bg-amber-50/50 rounded-lg border border-amber-100">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-sm font-semibold text-gray-600">Hora extra {idx+1}</span>
+                                    <button onClick={()=>eliminarHoraExtra(he.id)} className="text-red-500 text-sm hover:text-red-700">✕ Eliminar</button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">Cantidad de horas</label>
+                                        <input type="number" value={he.horas} onChange={e=>actualizarHoraExtra(he.id,'horas',e.target.value)} min="0" placeholder="10" className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-amber-500 focus:outline-none"/>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">Tipo</label>
+                                        <select value={he.tipo} onChange={e=>actualizarHoraExtra(he.id,'tipo',e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-amber-500 focus:outline-none">
+                                            <option value="diurna">Diurna (+25%)</option>
+                                            <option value="nocturna">Nocturna (+75%)</option>
+                                            <option value="dominical-diurna">Dominical Diurna (+100%)</option>
+                                            <option value="dominical-nocturna">Dominical Nocturna (+150%)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        <button onClick={agregarHoraExtra} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-amber-400 hover:text-amber-500 transition-colors text-sm font-semibold">+ Agregar horas extra</button>
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-                    <div><label className="block text-gray-700 font-semibold mb-2">Bonificación Constitutiva</label><div className="relative"><span className="absolute left-3 top-3 text-gray-500">$</span><input type="text" value={bonConst} onChange={e=>setBonConst(formatInput(e.target.value))} placeholder="0" className="w-full pl-8 pr-4 py-3 border-2 border-green-300 rounded-lg focus:border-green-500 focus:outline-none"/></div><p className="text-xs text-gray-500 mt-1">Cuenta como salario, tiene descuentos</p></div>
-                    <div><label className="block text-gray-700 font-semibold mb-2">Bonificación NO Constitutiva</label><div className="relative"><span className="absolute left-3 top-3 text-gray-500">$</span><input type="text" value={bonNoConst} onChange={e=>setBonNoConst(formatInput(e.target.value))} placeholder="0" className="w-full pl-8 pr-4 py-3 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none"/></div><p className="text-xs text-gray-500 mt-1">Sin descuentos, se recibe completa</p></div>
+                    <div><label className="block text-gray-700 font-semibold mb-2">Horas por día</label><input type="number" value={hDia} onChange={e=>setHDia(e.target.value)} min="1" max="24" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
+                    <div><label className="block text-gray-700 font-semibold mb-2">Días por semana</label><input type="number" value={dSemana} onChange={e=>setDSemana(e.target.value)} min="1" max="7" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
                 </div>
                 <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Nivel de Riesgo ARL</label>
                     <select value={nivelARL} onChange={e=>setNivelARL(parseInt(e.target.value))} className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none">
                         <option value="1">Riesgo I - Mínimo (0.522%) - Oficinas</option><option value="2">Riesgo II - Bajo (1.044%)</option><option value="3">Riesgo III - Medio (2.436%)</option><option value="4">Riesgo IV - Alto (4.35%)</option><option value="5">Riesgo V - Máximo (6.96%)</option>
                     </select>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-                    <div><label className="block text-gray-700 font-semibold mb-2">Horas extra al mes</label><input type="number" value={hExtra} onChange={e=>setHExtra(e.target.value)} min="0" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
-                    <div><label className="block text-gray-700 font-semibold mb-2">Tipo hora extra</label><select value={tipoHE} onChange={e=>setTipoHE(e.target.value)} className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"><option value="diurna">Diurna (+25%)</option><option value="nocturna">Nocturna (+75%)</option><option value="dominical-diurna">Dom. Diurna (+100%)</option><option value="dominical-nocturna">Dom. Nocturna (+150%)</option></select></div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-                    <div><label className="block text-gray-700 font-semibold mb-2">Horas por día</label><input type="number" value={hDia} onChange={e=>setHDia(e.target.value)} min="1" max="24" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
-                    <div><label className="block text-gray-700 font-semibold mb-2">Días por semana</label><input type="number" value={dSemana} onChange={e=>setDSemana(e.target.value)} min="1" max="7" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
                 </div>
                 <button onClick={calcular} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Calcular Nómina</button>
             </div>
@@ -151,19 +279,23 @@ function EmpleadoContrato() {
                     <h2 className="text-xl font-bold text-gray-800 mb-4">Desglose Completo</h2>
                     <div className="mb-6"><h3 className="font-bold text-green-700 mb-3">Ingresos</h3><div className="space-y-2">
                         <div className="flex justify-between p-3 bg-green-50 rounded"><span>Salario base</span><span className="font-bold">{formatCOP(unformat(salario))}</span></div>
-                        {unformat(bonConst)>0 && <div className="flex justify-between p-3 bg-green-50 rounded"><span>+ Bonificación constitutiva</span><span className="font-bold text-green-600">{formatCOP(unformat(bonConst))}</span></div>}
-                        {heVal()>0 && <div className="flex justify-between p-3 bg-green-50 rounded"><span>+ Horas extra</span><span className="font-bold text-green-600">{formatCOP(heVal())}</span></div>}
+                        {totalBonosConst()>0 && <div className="flex justify-between p-3 bg-green-50 rounded"><span>+ Bonificaciones constitutivas</span><span className="font-bold text-green-600">{formatCOP(totalBonosConst())}</span></div>}
+                        {heVal()>0 && heDetalle().filter(h=>h.valor>0).map(h => <div key={h.id} className="flex justify-between p-3 bg-green-50 rounded"><span>+ Horas extra {h.nombre} ({h.horas} hrs)</span><span className="font-bold text-green-600">{formatCOP(h.valor)}</span></div>)}
                         {aux()>0 && <div className="flex justify-between p-3 bg-green-50 rounded"><span>+ Auxilio transporte</span><span className="font-bold text-green-600">{formatCOP(aux())}</span></div>}
                         <div className="flex justify-between p-3 bg-green-100 rounded border-2 border-green-300"><span className="font-semibold">= Total devengado</span><span className="font-bold text-green-700 text-lg">{formatCOP(tDev()+aux())}</span></div>
                     </div></div>
                     <div className="mb-6"><h3 className="font-bold text-red-700 mb-3">Descuentos del Empleado</h3><div className="space-y-2">
                         <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Salud (4%)</span><p className="text-xs text-gray-500">Empresa paga 8.5% adicional</p></div><span className="font-bold text-red-600">-{formatCOP(sEmp())}</span></div>
                         <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Pensión (4%)</span><p className="text-xs text-gray-500">Empresa paga 12% adicional</p></div><span className="font-bold text-red-600">-{formatCOP(pEmp())}</span></div>
-                        {fsp()>0 && <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Fondo Solidaridad Pensional</span><p className="text-xs text-gray-500">Más de 4 SMMLV</p></div><span className="font-bold text-red-600">-{formatCOP(fsp())}</span></div>}
-                        {ret()>0 && <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Retención en la fuente</span><p className="text-xs text-gray-500">Anticipo impuesto renta</p></div><span className="font-bold text-red-600">-{formatCOP(ret())}</span></div>}
+                        {fsp()>0 && <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Fondo Solidaridad Pensional ({((fsp()/tDev())*100).toFixed(1)}%)</span><p className="text-xs text-gray-500">Más de 4 SMMLV</p></div><span className="font-bold text-red-600">-{formatCOP(fsp())}</span></div>}
+                        {ret()>0 && <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Retención en la fuente ({((ret()/tDev())*100).toFixed(2)}%)</span><p className="text-xs text-gray-500">Anticipo impuesto renta</p></div><span className="font-bold text-red-600">-{formatCOP(ret())}</span></div>}
                         <div className="flex justify-between p-3 bg-red-100 rounded border-2 border-red-300"><span className="font-semibold">= Total descuentos</span><span className="font-bold text-red-700">-{formatCOP(tDed())}</span></div>
                     </div></div>
-                    {unformat(bonNoConst)>0 && <div className="mb-6"><h3 className="font-bold text-blue-700 mb-3">Bonificaciones Extras</h3><div className="flex justify-between p-3 bg-blue-50 rounded"><span>Bonificación NO constitutiva (sin descuentos)</span><span className="font-bold text-blue-600">+{formatCOP(unformat(bonNoConst))}</span></div></div>}
+                    {totalBonosNoConst()>0 && <div className="mb-6"><h3 className="font-bold text-blue-700 mb-3">Bonificaciones NO Constitutivas</h3><div className="flex justify-between p-3 bg-blue-50 rounded"><span>Total bonos no constitutivos (sin descuentos)</span><span className="font-bold text-blue-600">+{formatCOP(totalBonosNoConst())}</span></div></div>}
+                    {totalDescNomina()>0 && <div className="mb-6"><h3 className="font-bold text-orange-700 mb-3">Descuentos de Nómina</h3><div className="space-y-2">
+                        {descuentos.map(d => { const val = d.tipo==='porcentaje' ? unformat(salario)*(parseFloat(d.valor)||0)/100 : unformat(d.valor); return val>0 ? <div key={d.id} className="flex justify-between p-3 bg-orange-50 rounded"><span>{d.nombre || 'Descuento'} {d.tipo==='porcentaje' ? `(${d.valor}%)` : ''}</span><span className="font-bold text-orange-600">-{formatCOP(val)}</span></div> : null; })}
+                        <div className="flex justify-between p-3 bg-orange-100 rounded border-2 border-orange-300"><span className="font-semibold">Total descuentos nómina</span><span className="font-bold text-orange-700">-{formatCOP(totalDescNomina())}</span></div>
+                    </div></div>}
                     <div className="mb-6"><h3 className="font-bold text-indigo-700 mb-3">Aportes del Empleador</h3><div className="space-y-2">
                         <div className="flex justify-between p-3 bg-indigo-50 rounded"><span>Salud (8.5%)</span><span className="font-bold">{formatCOP(sEmpr())}</span></div>
                         <div className="flex justify-between p-3 bg-indigo-50 rounded"><span>Pensión (12%)</span><span className="font-bold">{formatCOP(pEmpr())}</span></div>
@@ -186,6 +318,48 @@ function EmpleadoContrato() {
                     <h3 className="font-bold text-yellow-800 mb-2">{tipoContrato==='indefinido'?'Contrato Término Indefinido':`Contrato Término Fijo (${duracion} meses)`}</h3>
                     {tipoContrato==='indefinido' ? <ul className="text-sm text-yellow-700 space-y-1"><li>• Indemnización: 30 días primer año + 20 días/año adicional (salario &lt; 10 SMMLV)</li><li>• Salario ≥ 10 SMMLV: 20 días primer año + 15 días/año adicional</li></ul> : <ul className="text-sm text-yellow-700 space-y-1"><li>• Máximo 3 años, renovable</li><li>• Preaviso: 30 días antes del vencimiento</li><li>• Indemnización: salarios restantes del contrato</li></ul>}
                 </div>
+                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+                    <h3 className="font-bold text-blue-800 mb-2">¿Qué significan estos descuentos?</h3>
+                    <ul className="text-sm text-blue-700 space-y-2">
+                        <li><strong>Salud (4%):</strong> Te da derecho a servicios médicos en tu EPS. Tu empresa paga un 8.5% adicional.</li>
+                        <li><strong>Pensión (4%):</strong> Se acumula para tu pensión futura. Tu empresa paga un 12% adicional.</li>
+                        <li><strong>Fondo de Solidaridad:</strong> Aporte solidario adicional para quienes ganan más de 4 SMMLV.</li>
+                        <li><strong>Retención en la fuente:</strong> Anticipo del impuesto de renta. Se descuenta de lo que debas pagar en tu declaración anual.</li>
+                    </ul>
+                </div>
+                <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
+                    <h3 className="font-bold text-green-800 mb-2">Recomendaciones</h3>
+                    <ul className="text-sm text-green-700 space-y-1">
+                        <li>• Verifica que tu empleador esté realizando los aportes a seguridad social correctamente en la PILA.</li>
+                        <li>• Las cesantías deben ser consignadas al fondo antes del 14 de febrero de cada año.</li>
+                        <li>• La prima se paga en dos partes: junio y diciembre.</li>
+                        <li>• Si tu salario cambia, las prestaciones se recalculan sobre el nuevo valor.</li>
+                        <li>• Guarda tus desprendibles de nómina como soporte para futuras reclamaciones.</li>
+                    </ul>
+                </div>
+                <div className="bg-purple-50 border-l-4 border-purple-400 p-4 rounded">
+                    <h3 className="font-bold text-purple-800 mb-2">Diferencia entre Bonificaciones</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-3">
+                        <div className="bg-white p-3 rounded">
+                            <h4 className="font-bold text-green-700 mb-1">✅ Constitutiva de Salario</h4>
+                            <ul className="text-gray-600 space-y-1">
+                                <li>• SÍ se le descuenta salud y pensión</li>
+                                <li>• SÍ afecta prestaciones sociales</li>
+                                <li>• SÍ cuenta para liquidación</li>
+                                <li>• Ej: bonos de productividad, comisiones regulares</li>
+                            </ul>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                            <h4 className="font-bold text-blue-700 mb-1">❌ NO Constitutiva de Salario</h4>
+                            <ul className="text-gray-600 space-y-1">
+                                <li>• NO se le descuenta nada, se recibe 100%</li>
+                                <li>• NO afecta prestaciones sociales</li>
+                                <li>• NO cuenta para liquidación</li>
+                                <li>• Ej: bonos ocasionales, reconocimientos especiales</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
             </div>)}
         </div>
     );
@@ -193,27 +367,36 @@ function EmpleadoContrato() {
 
 // ========== INDEPENDIENTE / CONTRATISTA ==========
 function Independiente() {
-    const [valorNeto, setValorNeto] = useState('');
+    const [modo, setModo] = useState('neto');
+    const [valorNeto, setValorNeto] = useState('1.750.905');
+    const [valorBruto, setValorBruto] = useState('1.750.905');
     const [horasM, setHorasM] = useState('160');
     const [tipoServ, setTipoServ] = useState('servicio');
     const [declarante, setDeclarante] = useState(true);
     const [nivelR, setNivelR] = useState(1);
     const [mostrar, setMostrar] = useState(false);
 
-    const calcular = () => { if(unformat(valorNeto)<=0){alert('Ingresa un valor válido');return;} setMostrar(true); };
+    const calcular = () => { if(modo==='neto'&&unformat(valorNeto)<=0){alert('Ingresa un valor neto válido');return;} if(modo==='bruto'&&unformat(valorBruto)<=0){alert('Ingresa un valor bruto válido');return;} setMostrar(true); };
     const pctRet = () => tipoServ==='servicio' ? (declarante?0.04:0.06) : (declarante?0.10:0.11);
 
-    const brutoNec = () => {
+    const brutoDesdeNeto = () => {
         const n=unformat(valorNeto), pr=pctRet(), pi=0.01, pa=CONFIG.PORCENTAJES_ARL[nivelR];
         let pss=0.40*(0.125+0.16+pa), b=n/(1-pr-pi-pss), ibc=b*0.40;
         if(ibc<CONFIG.SMMLV){ const ssf=CONFIG.SMMLV*(0.125+0.16+pa); b=(n+ssf)/(1-pr-pi); ibc=CONFIG.SMMLV; }
         if(ibc>4*CONFIG.SMMLV){ pss=0.40*(0.125+0.16+pa+0.01); b=n/(1-pr-pi-pss); }
         return b;
     };
-
-    const ibcVal = () => Math.max(brutoNec()*0.40, CONFIG.SMMLV);
-    const retVal = () => brutoNec()*pctRet();
-    const icaVal = () => brutoNec()*0.01;
+    const netoDesdebruto = () => {
+        const b=unformat(valorBruto), pr=pctRet(), pa=CONFIG.PORCENTAJES_ARL[nivelR];
+        let ibc=b*0.40; if(ibc<CONFIG.SMMLV) ibc=CONFIG.SMMLV;
+        const totalSS=ibc*0.125+ibc*0.16+ibc*pa+(ibc>4*CONFIG.SMMLV?ibc*0.01:0);
+        return b - b*pr - totalSS - b*0.01;
+    };
+    const brutoFinal = () => modo==='neto' ? brutoDesdeNeto() : unformat(valorBruto);
+    const netoFinal = () => modo==='neto' ? unformat(valorNeto) : netoDesdebruto();
+    const ibcVal = () => Math.max(brutoFinal()*0.40, CONFIG.SMMLV);
+    const retVal = () => brutoFinal()*pctRet();
+    const icaVal = () => brutoFinal()*0.01;
     const ss = () => { const b=ibcVal(); const s=b*0.125,p=b*0.16,a=b*CONFIG.PORCENTAJES_ARL[nivelR],f=b>4*CONFIG.SMMLV?b*0.01:0; return {s,p,a,f,t:s+p+a+f}; };
     const tDesc = () => retVal()+ss().t+icaVal();
 
@@ -221,8 +404,14 @@ function Independiente() {
         <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-lg p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Datos del Contratista</h2>
-                <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 rounded mb-5"><p className="text-sm text-indigo-800"><strong>Cálculo inverso:</strong> Ingresa cuánto quieres recibir NETO y te diremos cuánto cobrar.</p></div>
-                <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Valor Neto que Quieres Recibir</label><div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span><input type="text" value={valorNeto} onChange={e=>setValorNeto(formatInput(e.target.value))} placeholder="Ej: 4.000.000" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-indigo-500 focus:outline-none"/></div><p className="text-sm text-gray-500 mt-1">Lo que quieres en tu cuenta después de descuentos</p></div>
+                <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">¿Qué dato tienes?</label>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={()=>{setModo('neto');setMostrar(false);}} className={`p-4 rounded-lg border-2 transition-all ${modo==='neto'?'border-indigo-500 bg-indigo-50 text-indigo-700':'border-gray-300 hover:border-indigo-300'}`}><div className="text-2xl mb-1">🎯</div><div className="font-semibold">Quiero recibir X</div><div className="text-xs text-gray-500">Calcula cuánto cobrar</div></button>
+                        <button onClick={()=>{setModo('bruto');setMostrar(false);}} className={`p-4 rounded-lg border-2 transition-all ${modo==='bruto'?'border-indigo-500 bg-indigo-50 text-indigo-700':'border-gray-300 hover:border-indigo-300'}`}><div className="text-2xl mb-1">💰</div><div className="font-semibold">Me ofrecen X bruto</div><div className="text-xs text-gray-500">Calcula cuánto recibes</div></button>
+                    </div>
+                </div>
+                {modo==='neto' && <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Valor Neto que Quieres Recibir</label><div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span><input type="text" value={valorNeto} onChange={e=>setValorNeto(formatInput(e.target.value))} placeholder="Ej: 4.000.000" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-indigo-500 focus:outline-none"/></div><p className="text-sm text-gray-500 mt-1">Lo que quieres en tu cuenta después de descuentos</p></div>}
+                {modo==='bruto' && <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Valor Bruto que te Ofrecen</label><div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span><input type="text" value={valorBruto} onChange={e=>setValorBruto(formatInput(e.target.value))} placeholder="Ej: 6.000.000" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-indigo-500 focus:outline-none"/></div><p className="text-sm text-gray-500 mt-1">El valor del contrato antes de descuentos</p></div>}
                 <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Horas de Trabajo al Mes</label><input type="number" value={horasM} onChange={e=>setHorasM(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"/><p className="text-sm text-gray-500 mt-1">160 = tiempo completo, 80 = medio tiempo</p></div>
                 <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Tipo de Servicio</label>
                     <div className="grid grid-cols-2 gap-3">
@@ -244,23 +433,31 @@ function Independiente() {
                 <button onClick={calcular} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Calcular</button>
             </div>
 
-            {mostrar && unformat(valorNeto)>0 && (<div className="space-y-4">
-                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-xl p-6 text-white">
-                    <h2 className="text-xl font-bold mb-2">Valor que Debes Cobrar</h2>
-                    <p className="text-4xl font-bold">{formatCOP(brutoNec())}</p>
-                    <p className="text-sm opacity-90 mt-2">Para recibir {formatCOP(unformat(valorNeto))} neto</p>
+            {mostrar && (modo==='neto'?unformat(valorNeto):unformat(valorBruto))>0 && (<div className="space-y-4">
+                {modo==='neto' ? (
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-xl p-6 text-white">
+                        <h2 className="text-xl font-bold mb-2">Valor que Debes Cobrar</h2>
+                        <p className="text-4xl font-bold">{formatCOP(brutoFinal())}</p>
+                        <p className="text-sm opacity-90 mt-2">Para recibir {formatCOP(netoFinal())} neto</p>
+                    </div>
+                ) : (
+                    <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl shadow-xl p-6 text-white">
+                        <h2 className="text-xl font-bold mb-2">Lo que Recibirás Neto</h2>
+                        <p className="text-4xl font-bold">{formatCOP(netoFinal())}</p>
+                        <p className="text-sm opacity-90 mt-2">De un contrato bruto de {formatCOP(brutoFinal())}</p>
+                    </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Bruto Anual</h2><p className="text-3xl font-bold">{formatCOP(brutoFinal()*12)}</p></div>
+                    <div className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Neto Anual</h2><p className="text-3xl font-bold">{formatCOP(netoFinal()*12)}</p></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Bruto Anual</h2><p className="text-3xl font-bold">{formatCOP(brutoNec()*12)}</p></div>
-                    <div className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Neto Anual</h2><p className="text-3xl font-bold">{formatCOP(unformat(valorNeto)*12)}</p></div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Tarifa/Hora Neta</h2><p className="text-3xl font-bold">{formatCOP(unformat(valorNeto)/parseFloat(horasM))}/hr</p></div>
-                    <div className="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Tarifa/Hora Bruta</h2><p className="text-3xl font-bold">{formatCOP(brutoNec()/parseFloat(horasM))}/hr</p></div>
+                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Tarifa/Hora Neta</h2><p className="text-3xl font-bold">{formatCOP(netoFinal()/parseFloat(horasM))}/hr</p></div>
+                    <div className="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Tarifa/Hora Bruta</h2><p className="text-3xl font-bold">{formatCOP(brutoFinal()/parseFloat(horasM))}/hr</p></div>
                 </div>
                 <div className="bg-white rounded-2xl shadow-xl p-6">
                     <h2 className="text-xl font-bold text-gray-800 mb-4">Desglose Detallado</h2>
-                    <div className="border-b pb-4 mb-4 flex justify-between"><span className="font-semibold">Valor Bruto Contrato</span><span className="text-xl font-bold text-indigo-600">{formatCOP(brutoNec())}</span></div>
+                    <div className="border-b pb-4 mb-4 flex justify-between"><span className="font-semibold">Valor Bruto Contrato</span><span className="text-xl font-bold text-indigo-600">{formatCOP(brutoFinal())}</span></div>
                     <div className="mb-4 p-4 bg-red-50 rounded-lg"><div className="flex justify-between mb-1"><span className="font-semibold">Retención en la Fuente</span><span className="font-bold text-red-600">-{formatCOP(retVal())}</span></div><p className="text-sm text-gray-600">{tipoServ==='servicio'?'Servicios':'Honorarios'}: {(pctRet()*100).toFixed(0)}% ({declarante?'declarante':'no declarante'})</p></div>
                     <div className="mb-4 p-4 bg-blue-50 rounded-lg"><div className="flex justify-between mb-1"><span className="font-semibold">Seguridad Social</span><span className="font-bold text-blue-600">-{formatCOP(ss().t)}</span></div><p className="text-sm text-gray-600 mb-2">IBC: {formatCOP(ibcVal())} (40% del contrato)</p>
                         <div className="space-y-1 ml-4 text-sm">
@@ -273,16 +470,284 @@ function Independiente() {
                     <div className="mb-4 p-4 bg-purple-50 rounded-lg"><div className="flex justify-between"><span className="font-semibold">ICA (Industria y Comercio)</span><span className="font-bold text-purple-600">-{formatCOP(icaVal())}</span></div><p className="text-sm text-gray-600 mt-1">~1% (varía por ciudad)</p></div>
                     <div className="border-t pt-4 space-y-3">
                         <div className="flex justify-between"><span className="font-semibold">Total Descuentos</span><span className="text-xl font-bold text-red-600">-{formatCOP(tDesc())}</span></div>
-                        <div className="flex justify-between p-4 bg-green-50 rounded-lg border-2 border-green-300"><span className="font-bold text-lg">Neto Final</span><span className="text-2xl font-bold text-green-600">{formatCOP(unformat(valorNeto))}</span></div>
-                        <p className="text-sm text-gray-500 text-center">Descuento total: {((tDesc()/brutoNec())*100).toFixed(1)}%</p>
+                        <div className="flex justify-between p-4 bg-green-50 rounded-lg border-2 border-green-300"><span className="font-bold text-lg">Neto Final</span><span className="text-2xl font-bold text-green-600">{formatCOP(netoFinal())}</span></div>
+                        <p className="text-sm text-gray-500 text-center">Descuento total: {((tDesc()/brutoFinal())*100).toFixed(1)}%</p>
                     </div>
                 </div>
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded"><h3 className="font-bold text-yellow-800 mb-2">Información Importante</h3><ul className="text-sm text-yellow-700 space-y-1"><li>• Sin prestaciones sociales (prima, cesantías, vacaciones)</li><li>• Pagar seguridad social antes del día 10 de cada mes</li><li>• IBC mínimo: 1 SMMLV ($1.750.905)</li><li>• El ICA varía por ciudad y actividad</li></ul></div>
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded"><h3 className="font-bold text-yellow-800 mb-2">Información Importante</h3><ul className="text-sm text-yellow-700 space-y-1"><li>• Sin prestaciones sociales (prima, cesantías, vacaciones)</li><li>• Pagar seguridad social antes del día 10 de cada mes vía PILA</li><li>• IBC mínimo: 1 SMMLV ($1.750.905)</li><li>• El ICA varía por ciudad y actividad económica</li><li>• La empresa contratante puede pagar tu seguridad social directamente (si hay acuerdo)</li></ul></div>
+                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded"><h3 className="font-bold text-blue-800 mb-2">¿Cómo funciona este cálculo?</h3><ul className="text-sm text-blue-700 space-y-2">
+                    <li><strong>Retención en la fuente:</strong> Es un anticipo del impuesto de renta. Servicios técnicos: 4% (declarante) o 6% (no declarante). Honorarios: 10% u 11%.</li>
+                    <li><strong>Seguridad social:</strong> Se calcula sobre el 40% del contrato (IBC). Incluye salud (12.5%), pensión (16%) y ARL según tu actividad.</li>
+                    <li><strong>ICA:</strong> Impuesto de Industria y Comercio que cobran las ciudades. Varía entre 0.4% y 1.4% según ciudad y actividad.</li>
+                </ul></div>
+                <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded"><h3 className="font-bold text-green-800 mb-2">Recomendaciones</h3><ul className="text-sm text-green-700 space-y-1">
+                    <li>• Usa esta calculadora ANTES de negociar tu tarifa para saber exactamente cuánto cobrar.</li>
+                    <li>• Separa mensualmente un porcentaje para impuestos (declaración de renta anual).</li>
+                    <li>• Considera crear un ahorro voluntario equivalente a prestaciones (~21% del ingreso).</li>
+                    <li>• Mantén al día tus pagos de seguridad social para evitar multas y pérdida de cobertura.</li>
+                    <li>• Guarda todos tus contratos y soportes de pago para tu declaración de renta.</li>
+                </ul></div>
             </div>)}
         </div>
     );
 }
 
+
+// ========== LIQUIDACIÓN LABORAL ==========
+function Liquidacion() {
+    const [inicio, setInicio] = useState('2022-11-03');
+    const [fin, setFin] = useState('2026-05-19');
+    const [salario, setSalario] = useState('1.750.905');
+    const [tieneBono, setTieneBono] = useState(false);
+    const [bonos, setBonos] = useState([{id:1, tipo:'porcentaje', valor:'15', meses:'10'}]);
+    const [diasVac, setDiasVac] = useState('15');
+    const [mostrar, setMostrar] = useState(false);
+
+    const agregarBono = () => setBonos([...bonos, {id:Date.now(), tipo:'porcentaje', valor:'', meses:'12'}]);
+    const eliminarBono = (id) => setBonos(bonos.filter(b=>b.id!==id));
+    const actualizarBono = (id, campo, val) => setBonos(bonos.map(b=>b.id===id?{...b,[campo]:val}:b));
+
+    const SMMLV_LIQ = 1423500;
+
+    function days360(s, e) {
+        let y1=s.getFullYear(), m1=s.getMonth()+1, d1=s.getDate();
+        let y2=e.getFullYear(), m2=e.getMonth()+1, d2=e.getDate();
+        if(d1===31) d1=30; if(d2===31) d2=30;
+        return (y2-y1)*360 + (m2-m1)*30 + (d2-d1);
+    }
+
+    const calcular = () => {
+        const s = new Date(inicio+'T12:00:00');
+        const e = new Date(fin+'T12:00:00');
+        if(isNaN(s)||isNaN(e)||s>=e){ alert('Ingresa fechas válidas'); return; }
+        if(unformat(salario)<=0){ alert('Ingresa un salario válido'); return; }
+        setMostrar(true);
+    };
+
+    const resultado = () => {
+        const s = new Date(inicio+'T12:00:00');
+        const e = new Date(fin+'T12:00:00');
+        if(isNaN(s)||isNaN(e)||s>=e) return null;
+
+        const sal = unformat(salario);
+        const totalDias = days360(s, e);
+        const anosComp = Math.floor(totalDias/360);
+        const diasParc = totalDias%360;
+        const mesesParc = Math.floor(diasParc/30);
+        const diasRP = diasParc%30;
+
+        // Calcular salario promedio con todos los bonos
+        let salProm = sal;
+        if(tieneBono && bonos.length>0) {
+            let sumaBonoMensual = 0;
+            bonos.forEach(b => {
+                const meses = parseFloat(b.meses)||0;
+                if(b.tipo==='porcentaje') {
+                    const bonoMes = sal * (parseFloat(b.valor)||0)/100;
+                    sumaBonoMensual += (bonoMes * meses)/12;
+                } else {
+                    const bonoMes = unformat(b.valor);
+                    sumaBonoMensual += (bonoMes * meses)/12;
+                }
+            });
+            salProm = sal + sumaBonoMensual;
+        }
+        const salDia = salProm/30;
+
+        const inicioAnio = new Date(e.getFullYear()+'-01-01T12:00:00');
+        const diasAnio = days360(inicioAnio, e);
+
+        const mes = e.getMonth()+1;
+        const inicioSem = mes<=6 ? new Date(e.getFullYear()+'-01-01T12:00:00') : new Date(e.getFullYear()+'-07-01T12:00:00');
+        const diasSem = days360(inicioSem, e);
+
+        const vac = parseFloat(diasVac)*salDia;
+        const prima = salProm*diasSem/360;
+        const ces = salProm*diasAnio/360;
+        const intCes = ces*0.12*diasAnio/360;
+
+        const esBaja = salProm <= SMMLV_LIQ*10;
+        let indem = 0;
+        if(totalDias>0){
+            if(anosComp>=1){ indem+=(esBaja?30:20)*salDia; if(totalDias>360) indem+=(totalDias-360)/360*(esBaja?20:15)*salDia; }
+            else { indem+=(totalDias/360)*(esBaja?30:20)*salDia; }
+        }
+
+        const sub = vac+prima+ces+intCes;
+        return { totalDias, anosComp, mesesParc, diasRP, salProm, salDia, diasAnio, diasSem, vac, prima, ces, intCes, indem, sub, esBaja };
+    };
+
+    const r = mostrar ? resultado() : null;
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Datos para Liquidación</h2>
+                <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded mb-5"><p className="text-sm text-red-800"><strong>Calcula tu liquidación</strong> según si fue renuncia voluntaria o despido sin justa causa. Incluye prima, cesantías, vacaciones e indemnización.</p></div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                    <div><label className="block text-gray-700 font-semibold mb-2">Fecha de ingreso</label><input type="date" value={inicio} onChange={e=>setInicio(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"/></div>
+                    <div><label className="block text-gray-700 font-semibold mb-2">Fecha de retiro</label><input type="date" value={fin} onChange={e=>setFin(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"/></div>
+                </div>
+
+                <div className="mb-5">
+                    <label className="block text-gray-700 font-semibold mb-2">Salario base mensual</label>
+                    <div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span>
+                    <input type="text" value={salario} onChange={e=>setSalario(formatInput(e.target.value))} className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-red-500 focus:outline-none"/></div>
+                </div>
+
+                <div className="mb-5">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={tieneBono} onChange={e=>setTieneBono(e.target.checked)} className="w-5 h-5 accent-red-500"/>
+                        <span className="font-semibold text-gray-700">Tiene bonos constitutivos de salario</span>
+                    </label>
+                </div>
+
+                {tieneBono && (
+                    <div className="mb-5 space-y-3">
+                        {bonos.map((bono, idx) => (
+                            <div key={bono.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-sm font-semibold text-gray-600">Bono {idx+1}</span>
+                                    {bonos.length>1 && <button onClick={()=>eliminarBono(bono.id)} className="text-red-500 text-sm hover:text-red-700">✕ Eliminar</button>}
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">Tipo de bono</label>
+                                        <select value={bono.tipo} onChange={e=>actualizarBono(bono.id,'tipo',e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-red-500 focus:outline-none">
+                                            <option value="porcentaje">% del salario</option>
+                                            <option value="fijo">Valor fijo ($)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">{bono.tipo==='porcentaje'?'Porcentaje (%)':'Valor mensual ($)'}</label>
+                                        {bono.tipo==='porcentaje' ? (
+                                            <input type="number" value={bono.valor} onChange={e=>actualizarBono(bono.id,'valor',e.target.value)} min="0" max="100" placeholder="15" className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-red-500 focus:outline-none"/>
+                                        ) : (
+                                            <div className="relative"><span className="absolute left-2 top-2 text-gray-500 text-sm">$</span><input type="text" value={bono.valor} onChange={e=>actualizarBono(bono.id,'valor',formatInput(e.target.value))} placeholder="500.000" className="w-full pl-6 pr-2 p-2 border border-gray-300 rounded-lg text-sm focus:border-red-500 focus:outline-none"/></div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600 text-xs mb-1">Meses que aplica</label>
+                                        <input type="number" value={bono.meses} onChange={e=>actualizarBono(bono.id,'meses',e.target.value)} min="1" max="12" className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-red-500 focus:outline-none"/>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        <button onClick={agregarBono} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-red-400 hover:text-red-500 transition-colors text-sm font-semibold">+ Agregar otro bono</button>
+                    </div>
+                )}
+
+                <div className="mb-5">
+                    <label className="block text-gray-700 font-semibold mb-2">Días de vacaciones disponibles</label>
+                    <input type="number" value={diasVac} onChange={e=>setDiasVac(e.target.value)} min="0" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"/>
+                    <p className="text-xs text-gray-500 mt-1">Total que muestra tu plataforma de nómina (incluye períodos anteriores)</p>
+                </div>
+
+                <button onClick={calcular} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Calcular Liquidación</button>
+            </div>
+
+            {mostrar && r && (<div className="space-y-4">
+                {/* Tiempo trabajado */}
+                <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-gray-400">
+                    <span className="text-sm text-gray-500">Tiempo trabajado:</span>
+                    <span className="font-bold ml-2">{r.anosComp} año(s), {r.mesesParc} mes(es) y {r.diasRP} día(s)</span>
+                    <span className="text-gray-400 ml-2">({r.totalDias} días calendario 360)</span>
+                </div>
+
+                {/* Salario promedio */}
+                {tieneBono && <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-teal-500">
+                    <div className="flex flex-wrap gap-4 text-sm">
+                        <span>Base: <strong>{formatCOP(unformat(salario))}</strong></span>
+                        <span>→ Promedio con bono: <strong>{formatCOP(r.salProm)}</strong></span>
+                        <span>· Valor día: <strong>{formatCOP(r.salDia)}</strong></span>
+                    </div>
+                </div>}
+
+                {/* Resultados principales */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl shadow-xl p-6 text-white">
+                        <h2 className="text-lg font-bold mb-2">Renuncia Voluntaria</h2>
+                        <p className="text-3xl font-bold">{formatCOP(r.sub)}</p>
+                        <p className="text-sm opacity-90 mt-1">Sin indemnización</p>
+                    </div>
+                    <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl shadow-xl p-6 text-white">
+                        <h2 className="text-lg font-bold mb-2">Despido sin Justa Causa</h2>
+                        <p className="text-3xl font-bold">{formatCOP(r.sub + r.indem)}</p>
+                        <p className="text-sm opacity-90 mt-1">+ indemnización {formatCOP(r.indem)}</p>
+                    </div>
+                </div>
+
+                {/* Desglose */}
+                <div className="bg-white rounded-2xl shadow-xl p-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">Desglose de Conceptos</h2>
+                    <div className="space-y-2">
+                        <div className="flex justify-between p-3 bg-green-50 rounded">
+                            <div><span>Vacaciones</span><p className="text-xs text-gray-500">{diasVac} días × {formatCOP(r.salDia)}/día</p></div>
+                            <span className="font-bold text-green-700">{formatCOP(r.vac)}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-green-50 rounded">
+                            <div><span>Prima de servicios</span><p className="text-xs text-gray-500">{r.diasSem} días del semestre en curso</p></div>
+                            <span className="font-bold text-green-700">{formatCOP(r.prima)}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-green-50 rounded">
+                            <div><span>Cesantías año en curso</span><p className="text-xs text-gray-500">{r.diasAnio} días (anteriores en el fondo)</p></div>
+                            <span className="font-bold text-green-700">{formatCOP(r.ces)}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-green-50 rounded">
+                            <div><span>Intereses sobre cesantías</span><p className="text-xs text-gray-500">12% anual proporcional</p></div>
+                            <span className="font-bold text-green-700">{formatCOP(r.intCes)}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-green-100 rounded border-2 border-green-300">
+                            <span className="font-semibold">Subtotal (ambos casos)</span>
+                            <span className="font-bold text-green-700 text-lg">{formatCOP(r.sub)}</span>
+                        </div>
+                        <div className="flex justify-between p-3 bg-red-50 rounded border-2 border-red-200">
+                            <div><span className="font-semibold text-red-700">Indemnización</span><p className="text-xs text-gray-500">{r.esBaja ? '≤10 SMMLV: 30+20 días' : '>10 SMMLV: 20+15 días'}</p></div>
+                            <span className="font-bold text-red-600 text-lg">{formatCOP(r.indem)}</span>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-400">
+                        <span>SMMLV 2026: {formatCOP(SMMLV_LIQ)}</span>
+                        <span>10 SMMLV: {formatCOP(SMMLV_LIQ*10)}</span>
+                        <span>Salario {r.esBaja?'≤':'>'}10 SMMLV</span>
+                    </div>
+                </div>
+
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                    <h3 className="font-bold text-yellow-800 mb-2">Notas importantes</h3>
+                    <ul className="text-sm text-yellow-700 space-y-1">
+                        <li>• Usa calendario de 360 días (año comercial colombiano)</li>
+                        <li>• Las cesantías de años anteriores se asumen ya depositadas en el fondo</li>
+                        <li>• Los resultados pueden variar según el caso específico</li>
+                        <li>• Consulta con un profesional en derecho laboral</li>
+                    </ul>
+                </div>
+                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+                    <h3 className="font-bold text-blue-800 mb-2">¿Cómo se calcula cada concepto?</h3>
+                    <ul className="text-sm text-blue-700 space-y-2">
+                        <li><strong>Vacaciones:</strong> Días pendientes × valor del día. El valor del día es el salario promedio ÷ 30.</li>
+                        <li><strong>Prima:</strong> Salario promedio × días del semestre en curso ÷ 360. Se paga proporcional al tiempo trabajado en el semestre.</li>
+                        <li><strong>Cesantías:</strong> Salario promedio × días del año en curso ÷ 360. Las de años anteriores ya están en tu fondo.</li>
+                        <li><strong>Intereses sobre cesantías:</strong> 12% anual sobre las cesantías, proporcional al tiempo.</li>
+                        <li><strong>Indemnización:</strong> Solo aplica en despido sin justa causa. Depende del salario y antigüedad.</li>
+                    </ul>
+                </div>
+                <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
+                    <h3 className="font-bold text-green-800 mb-2">Recomendaciones</h3>
+                    <ul className="text-sm text-green-700 space-y-1">
+                        <li>• Verifica el saldo de cesantías en tu fondo antes de aceptar la liquidación.</li>
+                        <li>• El empleador tiene 15 días hábiles para pagar la liquidación después del retiro.</li>
+                        <li>• Si no te pagan a tiempo, tienes derecho a una sanción moratoria (1 día de salario por cada día de retraso).</li>
+                        <li>• Revisa que te paguen las vacaciones pendientes de TODOS los períodos, no solo el actual.</li>
+                        <li>• Si fue despido sin justa causa, la indemnización es adicional a la liquidación normal.</li>
+                        <li>• Guarda copia de tu carta de renuncia o carta de despido como soporte legal.</li>
+                    </ul>
+                </div>
+            </div>)}
+        </div>
+    );
+}
 
 // ========== APP PRINCIPAL ==========
 function App() {
@@ -299,17 +764,21 @@ function App() {
                 </div>
             </div>
             <div className="bg-white rounded-2xl shadow-xl p-2 mb-6">
-                <div className="grid grid-cols-2 gap-2">
-                    <button onClick={()=>setTab('contrato')} className={`py-4 px-6 rounded-xl font-semibold transition-all ${tab==='contrato'?'bg-emerald-600 text-white shadow-lg':'text-gray-600 hover:bg-gray-100'}`}>
-                        <div className="text-2xl mb-1">👔</div><div>Empleado con Contrato</div><div className="text-xs opacity-75 mt-1">Término indefinido o fijo</div>
+                <div className="grid grid-cols-3 gap-2">
+                    <button onClick={()=>setTab('contrato')} className={`py-4 px-4 rounded-xl font-semibold transition-all ${tab==='contrato'?'bg-emerald-600 text-white shadow-lg':'text-gray-600 hover:bg-gray-100'}`}>
+                        <div className="text-2xl mb-1">👔</div><div className="text-sm">Empleado con Contrato</div><div className="text-xs opacity-75 mt-1">Término indefinido o fijo</div>
                     </button>
-                    <button onClick={()=>setTab('independiente')} className={`py-4 px-6 rounded-xl font-semibold transition-all ${tab==='independiente'?'bg-indigo-600 text-white shadow-lg':'text-gray-600 hover:bg-gray-100'}`}>
-                        <div className="text-2xl mb-1">💼</div><div>Independiente / Contratista</div><div className="text-xs opacity-75 mt-1">Prestación de servicios</div>
+                    <button onClick={()=>setTab('independiente')} className={`py-4 px-4 rounded-xl font-semibold transition-all ${tab==='independiente'?'bg-indigo-600 text-white shadow-lg':'text-gray-600 hover:bg-gray-100'}`}>
+                        <div className="text-2xl mb-1">💼</div><div className="text-sm">Independiente / Contratista</div><div className="text-xs opacity-75 mt-1">Prestación de servicios</div>
+                    </button>
+                    <button onClick={()=>setTab('liquidacion')} className={`py-4 px-4 rounded-xl font-semibold transition-all ${tab==='liquidacion'?'bg-red-600 text-white shadow-lg':'text-gray-600 hover:bg-gray-100'}`}>
+                        <div className="text-2xl mb-1">📋</div><div className="text-sm">Liquidación Laboral</div><div className="text-xs opacity-75 mt-1">Renuncia o despido</div>
                     </button>
                 </div>
             </div>
             {tab==='contrato' && <EmpleadoContrato />}
             {tab==='independiente' && <Independiente />}
+            {tab==='liquidacion' && <Liquidacion />}
             <div className="bg-white rounded-2xl shadow-xl p-6 mt-6">
                 <h3 className="font-bold text-gray-800 mb-3">Diferencias: Empleado vs Contratista</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -317,9 +786,35 @@ function App() {
                     <div className="bg-indigo-50 p-4 rounded-lg"><h4 className="font-bold text-indigo-800 mb-2">💼 Contratista</h4><ul className="text-gray-600 space-y-1"><li>❌ 12.5% salud + 16% pensión + ARL</li><li>❌ Todo sobre el 40% del contrato</li><li>❌ Sin prestaciones sociales</li><li>❌ Sin vacaciones pagadas</li><li>✅ Mayor flexibilidad</li></ul></div>
                 </div>
             </div>
-            <div className="text-center text-gray-500 text-sm mt-8">
-                <p>⚠️ Calculadora informativa. Consulte con un profesional para casos específicos.</p>
-                <p className="mt-1">Legislación colombiana 2026 | UVT: $52.374 | SMMLV: $1.750.905</p>
+            <div className="bg-white rounded-2xl shadow-xl p-6 mt-6">
+                <h3 className="font-bold text-gray-800 mb-3">⚠️ Aviso Legal y Metodología</h3>
+                <div className="space-y-3 text-sm text-gray-600">
+                    <p>Esta calculadora es una <strong>herramienta orientativa</strong> diseñada para dar una aproximación de los valores salariales, de contratación y de liquidación en Colombia para el año 2026. Los resultados no constituyen asesoría legal, contable ni financiera.</p>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-semibold text-gray-700 mb-2">Supuestos y limitaciones:</h4>
+                        <ul className="space-y-1 text-gray-500">
+                            <li>• Se usa el <strong>calendario comercial de 360 días</strong> (12 meses de 30 días), estándar en la legislación laboral colombiana.</li>
+                            <li>• Las cesantías de años anteriores se asumen <strong>ya depositadas en el fondo</strong> correspondiente.</li>
+                            <li>• La retención en la fuente es un cálculo simplificado (Procedimiento 1, Art. 383 E.T.). La retención real puede variar según deducciones adicionales del contribuyente.</li>
+                            <li>• El ICA (Impuesto de Industria y Comercio) se estima en 1% como promedio nacional. El porcentaje real varía por municipio y actividad económica.</li>
+                            <li>• No se incluyen descuentos por aportes voluntarios a pensión, cuentas AFC, ni medicina prepagada.</li>
+                            <li>• Los valores de SMMLV ($1.750.905) y UVT ($52.374) corresponden al año fiscal 2026 según decretos vigentes.</li>
+                        </ul>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                        <h4 className="font-semibold text-amber-800 mb-2">Se recomienda:</h4>
+                        <ul className="space-y-1 text-amber-700">
+                            <li>• Validar los resultados con un <strong>contador público</strong> o <strong>abogado laboralista</strong> antes de tomar decisiones.</li>
+                            <li>• Consultar directamente con tu empresa o fondo de pensiones/cesantías para valores exactos.</li>
+                            <li>• Revisar la normativa actualizada en caso de reformas tributarias o laborales posteriores a la fecha de creación de esta herramienta.</li>
+                            <li>• Para liquidaciones, solicitar siempre la liquidación formal por escrito a tu empleador y compararla con este estimado.</li>
+                        </ul>
+                    </div>
+                    <p className="text-xs text-gray-400 text-center mt-4">Basada en: Código Sustantivo del Trabajo | Estatuto Tributario | Ley 2466 de 2025 (Reforma Laboral) | Decreto SMMLV 2026 | Resolución UVT 2026 DIAN</p>
+                </div>
+            </div>
+            <div className="text-center text-gray-400 text-xs mt-6 mb-4">
+                <p>Calculadora Salarial Colombia 2026 · SMMLV: $1.750.905 · UVT: $52.374 · Auxilio de transporte: $200.000</p>
             </div>
         </div>
     );
