@@ -55,7 +55,7 @@ function calcRetencion(base) {
 
 // ========== EMPLEADO CON CONTRATO ==========
 function EmpleadoContrato() {
-    const [salario, setSalario] = useState('1.750.905');
+    const [salario, setSalario] = useState('');
     const [tipoContrato, setTipoContrato] = useState('indefinido');
     const [duracion, setDuracion] = useState('12');
     const [nivelARL, setNivelARL] = useState(1);
@@ -140,7 +140,7 @@ function EmpleadoContrato() {
                 <div className="mb-5">
                     <label className="block text-gray-700 font-semibold mb-2">Salario Base Mensual</label>
                     <div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span>
-                    <input type="text" value={salario} onChange={e=>setSalario(formatInput(e.target.value))} className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-emerald-500 focus:outline-none"/></div>
+                    <input type="text" value={salario} onChange={e=>setSalario(formatInput(e.target.value))} placeholder="Ej: 1.750.905" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-emerald-500 focus:outline-none"/></div>
                     <p className="text-sm text-gray-500 mt-1">Salario mínimo 2026: $1.750.905</p>
                 </div>
                 <div className="mb-5">
