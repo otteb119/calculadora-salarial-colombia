@@ -368,8 +368,8 @@ function EmpleadoContrato() {
 // ========== INDEPENDIENTE / CONTRATISTA ==========
 function Independiente() {
     const [modo, setModo] = useState('neto');
-    const [valorNeto, setValorNeto] = useState('1.750.905');
-    const [valorBruto, setValorBruto] = useState('1.750.905');
+    const [valorNeto, setValorNeto] = useState('');
+    const [valorBruto, setValorBruto] = useState('');
     const [horasM, setHorasM] = useState('160');
     const [tipoServ, setTipoServ] = useState('servicio');
     const [declarante, setDeclarante] = useState(true);
@@ -495,9 +495,9 @@ function Independiente() {
 
 // ========== LIQUIDACIÓN LABORAL ==========
 function Liquidacion() {
-    const [inicio, setInicio] = useState('2022-11-03');
-    const [fin, setFin] = useState('2026-05-19');
-    const [salario, setSalario] = useState('1.750.905');
+    const [inicio, setInicio] = useState('');
+    const [fin, setFin] = useState('');
+    const [salario, setSalario] = useState('');
     const [tieneBono, setTieneBono] = useState(false);
     const [bonos, setBonos] = useState([{id:1, tipo:'porcentaje', valor:'15', meses:'10'}]);
     const [diasVac, setDiasVac] = useState('15');
@@ -593,7 +593,7 @@ function Liquidacion() {
                 <div className="mb-5">
                     <label className="block text-gray-700 font-semibold mb-2">Salario base mensual</label>
                     <div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span>
-                    <input type="text" value={salario} onChange={e=>setSalario(formatInput(e.target.value))} className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-red-500 focus:outline-none"/></div>
+                    <input type="text" value={salario} onChange={e=>setSalario(formatInput(e.target.value))} placeholder="Ej: 1.750.905" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-red-500 focus:outline-none"/></div>
                 </div>
 
                 <div className="mb-5">
