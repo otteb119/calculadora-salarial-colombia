@@ -527,7 +527,6 @@ function Liquidacion() {
     const eliminarBono = (id) => setBonos(bonos.filter(b=>b.id!==id));
     const actualizarBono = (id, campo, val) => setBonos(bonos.map(b=>b.id===id?{...b,[campo]:val}:b));
 
-    const SMMLV_LIQ = 1423500;
 
     function days360(s, e) {
         let y1=s.getFullYear(), m1=s.getMonth()+1, d1=s.getDate();
@@ -586,7 +585,7 @@ function Liquidacion() {
         const ces = salProm*diasAnio/360;
         const intCes = ces*0.12*diasAnio/360;
 
-        const esBaja = salProm <= SMMLV_LIQ*10;
+        const esBaja = salProm < CONFIG.SMMLV*10;
         let indem = 0;
         if(totalDias>0){
             if(anosComp>=1){ indem+=(esBaja?30:20)*salDia; if(totalDias>360) indem+=(totalDias-360)/360*(esBaja?20:15)*salDia; }
@@ -723,14 +722,14 @@ function Liquidacion() {
                             <span className="font-bold text-green-700 text-lg">{formatCOP(r.sub)}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-red-50 rounded border-2 border-red-200">
-                            <div><span className="font-semibold text-red-700">Indemnización</span><p className="text-xs text-gray-500">{r.esBaja ? '≤10 SMMLV: 30+20 días' : '>10 SMMLV: 20+15 días'}</p></div>
+                            <div><span className="font-semibold text-red-700">Indemnización</span><p className="text-xs text-gray-500">{r.esBaja ? '<10 SMMLV: 30+20 días' : '≥10 SMMLV: 20+15 días'}</p></div>
                             <span className="font-bold text-red-600 text-lg">{formatCOP(r.indem)}</span>
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-400">
-                        <span>SMMLV 2026: {formatCOP(SMMLV_LIQ)}</span>
-                        <span>10 SMMLV: {formatCOP(SMMLV_LIQ*10)}</span>
-                        <span>Salario {r.esBaja?'≤':'>'}10 SMMLV</span>
+                        <span>SMMLV 2026: {formatCOP(CONFIG.SMMLV)}</span>
+                        <span>10 SMMLV: {formatCOP(CONFIG.SMMLV*10)}</span>
+                        <span>Salario {r.esBaja?'<':'≥'} 10 SMMLV</span>
                     </div>
                 </div>
 
