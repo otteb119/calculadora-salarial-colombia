@@ -329,7 +329,13 @@ function EmpleadoContrato() {
                         <input type="checkbox" checked={exonerado && !esInt()} disabled={esInt()} onChange={e=>setExonerado(e.target.checked)} className="w-5 h-5 accent-emerald-600"/>
                         <span className="font-semibold text-gray-700">El empleador está exonerado de salud, SENA e ICBF</span>
                     </label>
-                    <p className="text-xs text-gray-500 mt-1">Art. 114-1 E.T.: aplica a personas jurídicas y a personas naturales con 2 o más trabajadores, para salarios menores a 10 SMMLV. Desmárcalo si no aplica.</p>
+                    <div className="text-xs text-gray-500 mt-1 space-y-1">
+                        <p>Art. 114-1 E.T.: aplica para salarios menores a 10 SMMLV.</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li>Déjala marcada si el empleador es una persona jurídica (empresa) o una persona natural con dos o más trabajadores.</li>
+                            <li>Desmárcala si es una persona natural con un solo trabajador, por ejemplo alguien que contrata a una empleada doméstica. Ahí no aplica la exoneración.</li>
+                        </ul>
+                    </div>
                 </div>
                 <button onClick={calcular} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Calcular Nómina</button>
             </div>
