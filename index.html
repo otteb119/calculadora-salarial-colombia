@@ -606,8 +606,11 @@ function Liquidacion() {
         const diasSem = days360(s > inicioSem ? s : inicioSem, e);
 
         const vac = parseFloat(diasVac)*salDia;
-        const prima = salProm*diasSem/360;
-        const ces = salProm*diasAnio/360;
+        // Quien devenga hasta 2 SMMLV recibe auxilio de transporte, que hace parte de la base de prima y cesantías (no de vacaciones)
+        const aux = salProm <= 2*CONFIG.SMMLV ? CONFIG.AUXILIO_TRANSPORTE : 0;
+        const basePr = salProm + aux;
+        const prima = basePr*diasSem/360;
+        const ces = basePr*diasAnio/360;
         const intCes = ces*0.12*diasAnio/360;
 
         const esBaja = salProm < CONFIG.SMMLV*10;
@@ -620,7 +623,7 @@ function Liquidacion() {
         }
 
         const sub = vac+prima+ces+intCes;
-        return { totalDias, anosComp, mesesParc, diasRP, salProm, salDia, diasAnio, diasSem, vac, prima, ces, intCes, indem, sub, esBaja };
+        return { totalDias, anosComp, mesesParc, diasRP, salProm, salDia, aux, diasAnio, diasSem, vac, prima, ces, intCes, indem, sub, esBaja };
     };
 
     const r = mostrar ? resultado() : null;
@@ -700,6 +703,8 @@ function Liquidacion() {
                     <span className="font-bold ml-2">{r.anosComp} año(s), {r.mesesParc} mes(es) y {r.diasRP} día(s)</span>
                     <span className="text-gray-400 ml-2">({r.totalDias} días calendario 360)</span>
                 </div>
+
+                {r.aux>0 && <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-emerald-500 text-sm">La base de prima y cesantías incluye el auxilio de transporte: <strong>{formatCOP(r.aux)}</strong></div>}
 
                 {/* Salario promedio */}
                 {tieneBono && <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-teal-500">
