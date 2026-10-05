@@ -66,12 +66,13 @@ function calcularFSP(s) {
     return s*0.02;
 }
 
+// Tabla de retención en la fuente sobre salarios (Art. 383 E.T.), en UVT
 function calcRetencion(base) {
     const u=CONFIG.UVT, b=base/u;
     if(b<=95) return 0; if(b<=150) return (b-95)*0.19*u;
-    if(b<=360) return (10.45+(b-150)*0.28)*u; if(b<=640) return (69.25+(b-360)*0.33)*u;
-    if(b<=945) return (161.65+(b-640)*0.35)*u; if(b<=2300) return (268.40+(b-945)*0.37)*u;
-    return (769.75+(b-2300)*0.39)*u;
+    if(b<=360) return ((b-150)*0.28+10)*u; if(b<=640) return ((b-360)*0.33+69)*u;
+    if(b<=945) return ((b-640)*0.35+162)*u; if(b<=2300) return ((b-945)*0.37+268)*u;
+    return ((b-2300)*0.39+770)*u;
 }
 
 // ========== EMPLEADO CON CONTRATO ==========
