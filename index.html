@@ -546,11 +546,15 @@ function Liquidacion() {
     const actualizarBono = (id, campo, val) => setBonos(bonos.map(b=>b.id===id?{...b,[campo]:val}:b));
 
 
+    // Días en base 360 contando el día de ingreso y el de retiro (ambos inclusive).
+    // El último día de febrero y el día 31 se toman como día 30.
     function days360(s, e) {
+        const ultimoFeb = (d) => d.getMonth()===1 && d.getDate()===new Date(d.getFullYear(), 2, 0).getDate();
         let y1=s.getFullYear(), m1=s.getMonth()+1, d1=s.getDate();
         let y2=e.getFullYear(), m2=e.getMonth()+1, d2=e.getDate();
-        if(d1===31) d1=30; if(d2===31) d2=30;
-        return (y2-y1)*360 + (m2-m1)*30 + (d2-d1);
+        if(d1===31 || ultimoFeb(s)) d1=30;
+        if(d2===31 || ultimoFeb(e)) d2=30;
+        return (y2-y1)*360 + (m2-m1)*30 + (d2-d1) + 1;
     }
 
     const calcular = () => {
