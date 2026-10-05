@@ -162,7 +162,7 @@ function EmpleadoContrato() {
                         </button>
                     </div>
                 </div>
-                {tipoContrato==='fijo' && <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Duración (meses)</label><input type="number" value={duracion} onChange={e=>setDuracion(e.target.value)} min="1" max="36" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>}
+                {tipoContrato==='fijo' && <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Duración (meses)</label><input type="number" value={duracion} onChange={e=>setDuracion(e.target.value)} min="1" max="48" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>}
                 <div className="mb-5">
                     <label className="block text-gray-700 font-semibold mb-2">Salario Base Mensual</label>
                     <div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span>
@@ -349,7 +349,7 @@ function EmpleadoContrato() {
                 </div>
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
                     <h3 className="font-bold text-yellow-800 mb-2">{tipoContrato==='indefinido'?'Contrato Término Indefinido':`Contrato Término Fijo (${duracion} meses)`}</h3>
-                    {tipoContrato==='indefinido' ? <ul className="text-sm text-yellow-700 space-y-1"><li>• Indemnización: 30 días primer año + 20 días/año adicional (salario &lt; 10 SMMLV)</li><li>• Salario ≥ 10 SMMLV: 20 días primer año + 15 días/año adicional</li></ul> : <ul className="text-sm text-yellow-700 space-y-1"><li>• Máximo 3 años, renovable</li><li>• Preaviso: 30 días antes del vencimiento</li><li>• Indemnización: salarios restantes del contrato</li></ul>}
+                    {tipoContrato==='indefinido' ? <ul className="text-sm text-yellow-700 space-y-1"><li>• Indemnización: 30 días primer año + 20 días/año adicional (salario &lt; 10 SMMLV)</li><li>• Salario ≥ 10 SMMLV: 20 días primer año + 15 días/año adicional</li></ul> : <ul className="text-sm text-yellow-700 space-y-1"><li>• Máximo 4 años en total, incluidas las prórrogas (Ley 2466 de 2025, art. 46 CST)</li><li>• Preaviso: 30 días antes del vencimiento</li><li>• Indemnización: salarios restantes del contrato</li></ul>}
                 </div>
                 <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
                     <h3 className="font-bold text-blue-800 mb-2">¿Qué significan estos descuentos?</h3>
