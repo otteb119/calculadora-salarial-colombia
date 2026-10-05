@@ -121,7 +121,7 @@ function EmpleadoContrato() {
     const sEmp = () => tDev() * CONFIG.SALUD_EMPLEADO;
     const pEmp = () => tDev() * CONFIG.PENSION_EMPLEADO;
     const fsp = () => calcularFSP(tDev());
-    const ret = () => { const a=sEmp()+pEmp()+fsp(); const n=tDev()-a; const re=Math.min(n*0.25,(790/12)*CONFIG.UVT); /* renta exenta 25%, tope 790 UVT/año (Art. 206 num. 10 E.T.) */ return calcRetencion(Math.max(0,n-re)); };
+    const ret = () => { /* los bonos no constitutivos de salario siguen siendo ingreso laboral gravable */ const a=sEmp()+pEmp()+fsp(); const n=tDev()+totalBonosNoConst()-a; const re=Math.min(n*0.25,(790/12)*CONFIG.UVT); /* renta exenta 25%, tope 790 UVT/año (Art. 206 num. 10 E.T.) */ return calcRetencion(Math.max(0,n-re)); };
     const tDed = () => sEmp()+pEmp()+fsp()+ret();
     const neto = () => tDev()+aux()+totalBonosNoConst()-tDed()-totalDescNomina();
     const sEmpr = () => exon() ? 0 : tDev()*CONFIG.SALUD_EMPLEADOR;
