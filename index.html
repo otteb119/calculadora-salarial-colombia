@@ -408,25 +408,31 @@ function Independiente() {
     const calcular = () => { if(modo==='neto'&&unformat(valorNeto)<=0){alert('Ingresa un valor neto válido');return;} if(modo==='bruto'&&unformat(valorBruto)<=0){alert('Ingresa un valor bruto válido');return;} setMostrar(true); };
     const pctRet = () => tipoServ==='servicio' ? (declarante?0.04:0.06) : (declarante?0.10:0.11);
 
+    // IBC de independientes: 40% del ingreso, con piso de 1 SMMLV y tope de 25 SMMLV
+    const ibcDe = (b) => Math.min(Math.max(b*0.40, CONFIG.SMMLV), 25*CONFIG.SMMLV);
+    // Seguridad social total sobre un IBC: salud + pensión + ARL + Fondo de Solidaridad Pensional (por tramos)
+    const ssTotal = (ibc, pa) => ibc*(CONFIG.SALUD_INDEPENDIENTE+CONFIG.PENSION_INDEPENDIENTE+pa) + calcularFSP(ibc);
     const brutoDesdeNeto = () => {
         const n=unformat(valorNeto), pr=pctRet(), pi=0.01, pa=CONFIG.PORCENTAJES_ARL[nivelR];
-        let pss=0.40*(0.125+0.16+pa), b=n/(1-pr-pi-pss), ibc=b*0.40;
-        if(ibc<CONFIG.SMMLV){ const ssf=CONFIG.SMMLV*(0.125+0.16+pa); b=(n+ssf)/(1-pr-pi); ibc=CONFIG.SMMLV; }
-        if(ibc>4*CONFIG.SMMLV){ pss=0.40*(0.125+0.16+pa+0.01); b=n/(1-pr-pi-pss); }
+        // neto = bruto - bruto*(retención+ICA) - segSocial(IBC(bruto)). Se resuelve por iteración (la seguridad social depende del bruto).
+        let b = n/(1-pr-pi);
+        for(let i=0;i<20;i++){
+            const nb = (n + ssTotal(ibcDe(b), pa))/(1-pr-pi);
+            if(Math.abs(nb-b)<0.5){ b=nb; break; }
+            b = nb;
+        }
         return b;
     };
     const netoDesdebruto = () => {
         const b=unformat(valorBruto), pr=pctRet(), pa=CONFIG.PORCENTAJES_ARL[nivelR];
-        let ibc=b*0.40; if(ibc<CONFIG.SMMLV) ibc=CONFIG.SMMLV;
-        const totalSS=ibc*0.125+ibc*0.16+ibc*pa+(ibc>4*CONFIG.SMMLV?ibc*0.01:0);
-        return b - b*pr - totalSS - b*0.01;
+        return b - b*pr - ssTotal(ibcDe(b), pa) - b*0.01;
     };
     const brutoFinal = () => modo==='neto' ? brutoDesdeNeto() : unformat(valorBruto);
     const netoFinal = () => modo==='neto' ? unformat(valorNeto) : netoDesdebruto();
-    const ibcVal = () => Math.max(brutoFinal()*0.40, CONFIG.SMMLV);
+    const ibcVal = () => ibcDe(brutoFinal());
     const retVal = () => brutoFinal()*pctRet();
     const icaVal = () => brutoFinal()*0.01;
-    const ss = () => { const b=ibcVal(); const s=b*0.125,p=b*0.16,a=b*CONFIG.PORCENTAJES_ARL[nivelR],f=b>4*CONFIG.SMMLV?b*0.01:0; return {s,p,a,f,t:s+p+a+f}; };
+    const ss = () => { const b=ibcVal(); const s=b*0.125,p=b*0.16,a=b*CONFIG.PORCENTAJES_ARL[nivelR],f=calcularFSP(b); return {s,p,a,f,t:s+p+a+f}; };
     const tDesc = () => retVal()+ss().t+icaVal();
 
     return (
@@ -488,7 +494,7 @@ function Independiente() {
                     <h2 className="text-xl font-bold text-gray-800 mb-4">Desglose Detallado</h2>
                     <div className="border-b pb-4 mb-4 flex justify-between"><span className="font-semibold">Valor Bruto Contrato</span><span className="text-xl font-bold text-indigo-600">{formatCOP(brutoFinal())}</span></div>
                     <div className="mb-4 p-4 bg-red-50 rounded-lg"><div className="flex justify-between mb-1"><span className="font-semibold">Retención en la Fuente</span><span className="font-bold text-red-600">-{formatCOP(retVal())}</span></div><p className="text-sm text-gray-600">{tipoServ==='servicio'?'Servicios':'Honorarios'}: {(pctRet()*100).toFixed(0)}% ({declarante?'declarante':'no declarante'})</p></div>
-                    <div className="mb-4 p-4 bg-blue-50 rounded-lg"><div className="flex justify-between mb-1"><span className="font-semibold">Seguridad Social</span><span className="font-bold text-blue-600">-{formatCOP(ss().t)}</span></div><p className="text-sm text-gray-600 mb-2">IBC: {formatCOP(ibcVal())} (40% del contrato)</p>
+                    <div className="mb-4 p-4 bg-blue-50 rounded-lg"><div className="flex justify-between mb-1"><span className="font-semibold">Seguridad Social</span><span className="font-bold text-blue-600">-{formatCOP(ss().t)}</span></div><p className="text-sm text-gray-600 mb-2">IBC: {formatCOP(ibcVal())} (40% del contrato{brutoFinal()*0.40>25*CONFIG.SMMLV ? ', limitado al tope de 25 SMMLV' : brutoFinal()*0.40<CONFIG.SMMLV ? ', mínimo 1 SMMLV' : ''})</p>
                         <div className="space-y-1 ml-4 text-sm">
                             <div className="flex justify-between"><span>• Salud (12.5%)</span><span>{formatCOP(ss().s)}</span></div>
                             <div className="flex justify-between"><span>• Pensión (16%)</span><span>{formatCOP(ss().p)}</span></div>
