@@ -110,12 +110,12 @@ function EmpleadoContrato() {
     const heVal = () => {
         const vh = sBase()/divisorHora();
         const r = factoresHE();
-        return horasExtras.reduce((sum, h) => sum + vh*(1+r[h.tipo])*(parseInt(h.horas)||0), 0);
+        return horasExtras.reduce((sum, h) => sum + vh*(1+r[h.tipo])*Math.max(0, parseInt(h.horas)||0), 0);
     };
     const heDetalle = () => {
         const vh = sBase()/divisorHora();
         const r = factoresHE();
-        return horasExtras.map(h => ({...h, valor: vh*(1+r[h.tipo])*(parseInt(h.horas)||0), nombre: nombreHE(h.tipo)}));
+        return horasExtras.map(h => ({...h, valor: vh*(1+r[h.tipo])*Math.max(0, parseInt(h.horas)||0), nombre: nombreHE(h.tipo)}));
     };
     const tDev = () => sBase() + heVal();
     const aux = () => sBase() <= CONFIG.TOPE_AUXILIO ? CONFIG.AUXILIO_TRANSPORTE : 0;
@@ -145,7 +145,11 @@ function EmpleadoContrato() {
     const tPrest = () => pri()+ces()+intC()+vac();
     const cTotal = () => tDev()+aux()+tEmpr()+tPrest();
 
-    const calcular = () => { if(unformat(salario)<CONFIG.SMMLV){alert('El salario no puede ser inferior al mínimo');return;} setMostrar(true); };
+    // Valor neto por día/hora; devuelve 0 si el campo está vacío o es inválido (evita NaN/Infinity)
+    const porDia = () => { const d=parseFloat(dSemana); return d>0 ? neto()/((d*52)/12) : 0; };
+    const porHora = () => { const h=parseFloat(hDia), d=parseFloat(dSemana); return (h>0 && d>0) ? neto()/((h*d*52)/12) : 0; };
+
+    const calcular = () => { if(unformat(salario)<CONFIG.SMMLV){alert('El salario no puede ser inferior al mínimo');return;} if(!(parseFloat(hDia)>0) || !(parseFloat(dSemana)>0)){alert('Ingresa horas por día y días por semana mayores a cero');return;} setMostrar(true); };
 
     return (
         <div className="space-y-6">
@@ -301,8 +305,8 @@ function EmpleadoContrato() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-indigo-500"><div className="text-sm text-gray-500">Quincenal</div><div className="text-lg font-bold">{formatCOP(neto()/2)}</div></div>
                     <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-purple-500"><div className="text-sm text-gray-500">Semanal</div><div className="text-lg font-bold">{formatCOP(neto()/4.33)}</div></div>
-                    <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-pink-500"><div className="text-sm text-gray-500">Diario</div><div className="text-lg font-bold">{formatCOP(neto()/((parseFloat(dSemana)*52)/12))}</div></div>
-                    <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-orange-500"><div className="text-sm text-gray-500">Por Hora</div><div className="text-lg font-bold">{formatCOP(neto()/((parseFloat(hDia)*parseFloat(dSemana)*52)/12))}</div></div>
+                    <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-pink-500"><div className="text-sm text-gray-500">Diario</div><div className="text-lg font-bold">{formatCOP(porDia())}</div></div>
+                    <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-orange-500"><div className="text-sm text-gray-500">Por Hora</div><div className="text-lg font-bold">{formatCOP(porHora())}</div></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Bruto Anual</h2><p className="text-3xl font-bold">{formatCOP(tDev()*12)}</p></div>
@@ -409,7 +413,7 @@ function Independiente() {
     const [nivelR, setNivelR] = useState(1);
     const [mostrar, setMostrar] = useState(false);
 
-    const calcular = () => { if(modo==='neto'&&unformat(valorNeto)<=0){alert('Ingresa un valor neto válido');return;} if(modo==='bruto'&&unformat(valorBruto)<=0){alert('Ingresa un valor bruto válido');return;} setMostrar(true); };
+    const calcular = () => { if(modo==='neto'&&unformat(valorNeto)<=0){alert('Ingresa un valor neto válido');return;} if(modo==='bruto'&&unformat(valorBruto)<=0){alert('Ingresa un valor bruto válido');return;} if(!(parseFloat(horasM)>0)){alert('Ingresa las horas de trabajo al mes (mayor a cero)');return;} setMostrar(true); };
     const pctRet = () => tipoServ==='servicio' ? (declarante?0.04:0.06) : (declarante?0.10:0.11);
 
     // IBC de independientes: 40% del ingreso, con piso de 1 SMMLV y tope de 25 SMMLV
@@ -491,8 +495,8 @@ function Independiente() {
                     <div className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Neto Anual</h2><p className="text-3xl font-bold">{formatCOP(netoFinal()*12)}</p></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Tarifa/Hora Neta</h2><p className="text-3xl font-bold">{formatCOP(netoFinal()/parseFloat(horasM))}/hr</p></div>
-                    <div className="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Tarifa/Hora Bruta</h2><p className="text-3xl font-bold">{formatCOP(brutoFinal()/parseFloat(horasM))}/hr</p></div>
+                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Tarifa/Hora Neta</h2><p className="text-3xl font-bold">{formatCOP(parseFloat(horasM)>0 ? netoFinal()/parseFloat(horasM) : 0)}/hr</p></div>
+                    <div className="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-2xl shadow-xl p-6 text-white"><h2 className="text-lg font-bold mb-1">Tarifa/Hora Bruta</h2><p className="text-3xl font-bold">{formatCOP(parseFloat(horasM)>0 ? brutoFinal()/parseFloat(horasM) : 0)}/hr</p></div>
                 </div>
                 <div className="bg-white rounded-2xl shadow-xl p-6">
                     <h2 className="text-xl font-bold text-gray-800 mb-4">Desglose Detallado</h2>
@@ -608,7 +612,7 @@ function Liquidacion() {
         // Igual para la prima: desde el ingreso si fue posterior al inicio del semestre
         const diasSem = days360(s > inicioSem ? s : inicioSem, e);
 
-        const vac = parseFloat(diasVac)*salDia;
+        const vac = Math.max(0, parseFloat(diasVac)||0)*salDia;
         // Quien devenga hasta 2 SMMLV recibe auxilio de transporte, que hace parte de la base de prima y cesantías (no de vacaciones)
         const aux = salProm <= 2*CONFIG.SMMLV ? CONFIG.AUXILIO_TRANSPORTE : 0;
         const basePr = salProm + aux;
