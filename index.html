@@ -29,6 +29,7 @@ const CONFIG = {
     PENSION_EMPLEADOR: 0.12, PENSION_EMPLEADO: 0.04, CAJA_COMPENSACION: 0.04,
     ICBF: 0.03, SENA: 0.02, PRIMA: 0.0833, CESANTIAS: 0.0833,
     INTERESES_CESANTIAS: 0.01, VACACIONES: 0.0417,
+    SALARIO_INTEGRAL_MIN_SMMLV: 13, FACTOR_SALARIAL_INTEGRAL: 0.70,
     SALUD_INDEPENDIENTE: 0.125, PENSION_INDEPENDIENTE: 0.16,
     PORCENTAJES_ARL: { 1: 0.00522, 2: 0.01044, 3: 0.02436, 4: 0.04350, 5: 0.06960 }
 };
@@ -81,6 +82,7 @@ function EmpleadoContrato() {
     const [duracion, setDuracion] = useState('12');
     const [nivelARL, setNivelARL] = useState(1);
     const [exonerado, setExonerado] = useState(true);
+    const [integral, setIntegral] = useState(false);
     const [bonos, setBonos] = useState([]);
     const [descuentos, setDescuentos] = useState([]);
     const [horasExtras, setHorasExtras] = useState([]);
@@ -105,42 +107,53 @@ function EmpleadoContrato() {
     const totalBonosConst = () => bonos.filter(b=>b.constitutivo).reduce((sum,b) => sum + (b.tipo==='porcentaje' ? unformat(salario)*(parseFloat(b.valor)||0)/100 : unformat(b.valor)), 0);
     const totalBonosNoConst = () => bonos.filter(b=>!b.constitutivo).reduce((sum,b) => sum + (b.tipo==='porcentaje' ? unformat(salario)*(parseFloat(b.valor)||0)/100 : unformat(b.valor)), 0);
 
+    // Salario integral (Art. 132 CST): mínimo 13 SMMLV; solo se puede activar si el salario llega a ese mínimo
+    const minIntegral = CONFIG.SALARIO_INTEGRAL_MIN_SMMLV*CONFIG.SMMLV;
+    const puedeIntegral = () => unformat(salario) >= minIntegral;
+    const esInt = () => integral && puedeIntegral();
+    // Con salario integral, la seguridad social, los parafiscales y la retención se calculan sobre el 70% (factor salarial)
+    const fBase = () => esInt() ? CONFIG.FACTOR_SALARIAL_INTEGRAL : 1;
+    const cambiarSalario = (v) => { setSalario(v); if(unformat(v) < minIntegral) setIntegral(false); };
+
     const sBase = () => unformat(salario) + totalBonosConst();
     const heVal = () => {
+        if(esInt()) return 0; // el salario integral ya compensa horas extra y recargos
         const vh = sBase()/divisorHora();
         const r = factoresHE();
         return horasExtras.reduce((sum, h) => sum + vh*(1+r[h.tipo])*Math.max(0, parseInt(h.horas)||0), 0);
     };
     const heDetalle = () => {
+        if(esInt()) return [];
         const vh = sBase()/divisorHora();
         const r = factoresHE();
         return horasExtras.map(h => ({...h, valor: vh*(1+r[h.tipo])*Math.max(0, parseInt(h.horas)||0), nombre: nombreHE(h.tipo)}));
     };
     const tDev = () => sBase() + heVal();
-    const aux = () => sBase() <= CONFIG.TOPE_AUXILIO ? CONFIG.AUXILIO_TRANSPORTE : 0;
+    const aux = () => (!esInt() && sBase() <= CONFIG.TOPE_AUXILIO) ? CONFIG.AUXILIO_TRANSPORTE : 0;
     // Ley 1393 de 2010, art. 30: los pagos no salariales que excedan el 40% de la remuneración total suman al IBC de salud, pensión y ARL
     const excesoNoSalarial = () => Math.max(0, totalBonosNoConst() - 0.40*(tDev()+totalBonosNoConst()));
-    const ibcSS = () => tDev() + excesoNoSalarial();
+    const ibcSS = () => tDev()*fBase() + excesoNoSalarial();
     const sEmp = () => ibcSS() * CONFIG.SALUD_EMPLEADO;
     const pEmp = () => ibcSS() * CONFIG.PENSION_EMPLEADO;
     const fsp = () => calcularFSP(ibcSS());
-    const ret = () => { /* los bonos no constitutivos de salario siguen siendo ingreso laboral gravable */ const a=sEmp()+pEmp()+fsp(); const n=tDev()+totalBonosNoConst()-a; const re=Math.min(n*0.25,(790/12)*CONFIG.UVT); /* renta exenta 25%, tope 790 UVT/año (Art. 206 num. 10 E.T.) */ return calcRetencion(Math.max(0,n-re)); };
+    const ret = () => { /* los bonos no constitutivos de salario siguen siendo ingreso laboral gravable */ const a=sEmp()+pEmp()+fsp(); const n=tDev()*fBase()+totalBonosNoConst()-a; const re=Math.min(n*0.25,(790/12)*CONFIG.UVT); /* renta exenta 25%, tope 790 UVT/año (Art. 206 num. 10 E.T.) */ return calcRetencion(Math.max(0,n-re)); };
     const tDed = () => sEmp()+pEmp()+fsp()+ret();
     const neto = () => tDev()+aux()+totalBonosNoConst()-tDed()-totalDescNomina();
     const sEmpr = () => exon() ? 0 : ibcSS()*CONFIG.SALUD_EMPLEADOR;
     const pEmpr = () => ibcSS()*CONFIG.PENSION_EMPLEADOR;
     const arl = () => ibcSS()*CONFIG.PORCENTAJES_ARL[nivelARL];
-    const caja = () => tDev()*CONFIG.CAJA_COMPENSACION;
+    const caja = () => tDev()*fBase()*CONFIG.CAJA_COMPENSACION;
     // Art. 114-1 E.T.: exoneración de salud (8.5%), SENA e ICBF del empleador para quienes devengan menos de 10 SMMLV
-    const exon = () => exonerado && tDev() < CONFIG.SMMLV*10;
-    const icbf = () => exon()?0:tDev()*CONFIG.ICBF;
-    const sena = () => exon()?0:tDev()*CONFIG.SENA;
+    const exon = () => exonerado && !esInt() && tDev() < CONFIG.SMMLV*10;
+    const icbf = () => exon()?0:tDev()*fBase()*CONFIG.ICBF;
+    const sena = () => exon()?0:tDev()*fBase()*CONFIG.SENA;
     const tEmpr = () => sEmpr()+pEmpr()+arl()+caja()+icbf()+sena();
     const bPr = () => tDev()+aux();
-    const pri = () => bPr()*CONFIG.PRIMA;
-    const ces = () => bPr()*CONFIG.CESANTIAS;
-    const intC = () => bPr()*CONFIG.INTERESES_CESANTIAS;
-    const vac = () => tDev()*CONFIG.VACACIONES;
+    // Con salario integral las prestaciones ya están incluidas en el 30% (factor prestacional)
+    const pri = () => esInt() ? 0 : bPr()*CONFIG.PRIMA;
+    const ces = () => esInt() ? 0 : bPr()*CONFIG.CESANTIAS;
+    const intC = () => esInt() ? 0 : bPr()*CONFIG.INTERESES_CESANTIAS;
+    const vac = () => esInt() ? 0 : tDev()*CONFIG.VACACIONES;
     const tPrest = () => pri()+ces()+intC()+vac();
     const cTotal = () => tDev()+aux()+tEmpr()+tPrest();
 
@@ -169,8 +182,15 @@ function EmpleadoContrato() {
                 <div className="mb-5">
                     <label className="block text-gray-700 font-semibold mb-2">Salario Base Mensual</label>
                     <div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span>
-                    <input type="text" value={salario} onChange={e=>setSalario(formatInput(e.target.value))} placeholder="Ej: 1.750.905" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-emerald-500 focus:outline-none"/></div>
+                    <input type="text" value={salario} onChange={e=>cambiarSalario(formatInput(e.target.value))} placeholder="Ej: 1.750.905" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-emerald-500 focus:outline-none"/></div>
                     <p className="text-sm text-gray-500 mt-1">Salario mínimo 2026: $1.750.905</p>
+                </div>
+                <div className="mb-5">
+                    <label className={`flex items-center gap-3 ${puedeIntegral() ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                        <input type="checkbox" checked={esInt()} disabled={!puedeIntegral()} onChange={e=>setIntegral(e.target.checked)} className="w-5 h-5 accent-emerald-600"/>
+                        <span className="font-semibold text-gray-700">Salario integral</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">{puedeIntegral() ? 'Incluye las prestaciones en un solo pago. Seguridad social y retención se calculan sobre el 70%.' : `Disponible desde 13 SMMLV (${formatCOP(minIntegral)}). Con un salario menor no se puede pactar salario integral.`}</p>
                 </div>
                 <div className="mb-5">
                     <label className="block text-gray-700 font-semibold mb-3">Bonificaciones</label>
@@ -249,7 +269,8 @@ function EmpleadoContrato() {
                 </div>
                 <div className="mb-5">
                     <label className="block text-gray-700 font-semibold mb-3">Horas Extra</label>
-                    <div className="space-y-3">
+                    {esInt() && <p className="text-sm text-gray-500 mb-2">El salario integral ya compensa las horas extra y los recargos; no se calculan por separado.</p>}
+                    <div className={esInt() ? 'hidden' : 'space-y-3'}>
                         {horasExtras.map((he, idx) => (
                             <div key={he.id} className="p-4 bg-amber-50/50 rounded-lg border border-amber-100">
                                 <div className="flex justify-between items-center mb-3">
@@ -340,7 +361,7 @@ function EmpleadoContrato() {
                         {exon() ? <div className="flex justify-between p-3 bg-green-50 rounded"><span>ICBF y SENA</span><span className="font-bold text-green-600">Exonerado</span></div> : <><div className="flex justify-between p-3 bg-indigo-50 rounded"><span>ICBF (3%)</span><span className="font-bold">{formatCOP(icbf())}</span></div><div className="flex justify-between p-3 bg-indigo-50 rounded"><span>SENA (2%)</span><span className="font-bold">{formatCOP(sena())}</span></div></>}
                         <div className="flex justify-between p-3 bg-indigo-100 rounded border-2 border-indigo-300"><span className="font-semibold">Total empleador</span><span className="font-bold text-indigo-700">{formatCOP(tEmpr())}</span></div>
                     </div></div>
-                    <div className="mb-6"><h3 className="font-bold text-purple-700 mb-3">Prestaciones Sociales (mensual)</h3><div className="space-y-2">
+                    <div className="mb-6"><h3 className="font-bold text-purple-700 mb-3">Prestaciones Sociales (mensual)</h3>{esInt() && <p className="text-sm text-purple-700 mb-2">Con salario integral las prestaciones (prima, cesantías e intereses) ya están incluidas en el 30% de factor prestacional. Las vacaciones se disfrutan y se pagan con el mismo salario.</p>}<div className={esInt() ? 'hidden' : 'space-y-2'}>
                         <div className="flex justify-between p-3 bg-purple-50 rounded"><span>Prima (8.33%)</span><span className="font-bold">{formatCOP(pri())}</span></div>
                         <div className="flex justify-between p-3 bg-purple-50 rounded"><span>Cesantías (8.33%)</span><span className="font-bold">{formatCOP(ces())}</span></div>
                         <div className="flex justify-between p-3 bg-purple-50 rounded"><span>Intereses cesantías (1%)</span><span className="font-bold">{formatCOP(intC())}</span></div>
