@@ -98,6 +98,8 @@ function EmpleadoContrato() {
 
     const [hDia, setHDia] = useState('8');
     const [dSemana, setDSemana] = useState('5');
+    const [modoJornada, setModoJornada] = useState('dia'); // 'dia' = horas por día y días por semana; 'semana' = horas totales por semana
+    const [hSemana, setHSemana] = useState('40');
     const [mostrar, setMostrar] = useState(false);
 
     const agregarBono = () => setBonos([...bonos, {id:Date.now(), tipo:'porcentaje', valor:'', constitutivo:true}]);
@@ -158,10 +160,14 @@ function EmpleadoContrato() {
     const cTotal = () => tDev()+aux()+tEmpr()+tPrest();
 
     // Valor neto por día/hora; devuelve 0 si el campo está vacío o es inválido (evita NaN/Infinity)
+    // Horas trabajadas por semana, según cómo las indique la persona
+    const horasSemana = () => modoJornada==='semana' ? (parseFloat(hSemana)||0) : (parseFloat(hDia)||0)*(parseFloat(dSemana)||0);
     const porDia = () => { const d=parseFloat(dSemana); return d>0 ? neto()/((d*52)/12) : 0; };
-    const porHora = () => { const h=parseFloat(hDia), d=parseFloat(dSemana); return (h>0 && d>0) ? neto()/((h*d*52)/12) : 0; };
+    const porHora = () => { const h=horasSemana(); return h>0 ? neto()/((h*52)/12) : 0; };
+    // Al cambiar de modo se conserva el total de horas que ya estaba escrito
+    const cambiarModoJornada = (m) => { if(m==='semana' && horasSemana()>0) setHSemana(String(Math.round(horasSemana()*100)/100)); setModoJornada(m); };
 
-    const calcular = () => { if(unformat(salario)<CONFIG.SMMLV){alert('El salario no puede ser inferior al mínimo');return;} if(!(parseFloat(hDia)>0) || !(parseFloat(dSemana)>0)){alert('Ingresa horas por día y días por semana mayores a cero');return;} setMostrar(true); };
+    const calcular = () => { if(unformat(salario)<CONFIG.SMMLV){alert('El salario no puede ser inferior al mínimo');return;} if(modoJornada==='dia' && (!(parseFloat(hDia)>0) || !(parseFloat(dSemana)>0))){alert('Ingresa horas por día y días por semana mayores a cero');return;} if(modoJornada==='semana' && !(parseFloat(hSemana)>0)){alert('Ingresa las horas por semana (mayor a cero)');return;} if(horasSemana()>168){alert('Las horas por semana no pueden superar 168');return;} setMostrar(true); };
 
     return (
         <div className="space-y-6">
@@ -297,9 +303,21 @@ function EmpleadoContrato() {
                         <button onClick={agregarHoraExtra} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-amber-400 hover:text-amber-500 transition-colors text-sm font-semibold">+ Agregar horas extra</button>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-                    <div><label className="block text-gray-700 font-semibold mb-2">Horas por día</label><input type="number" value={hDia} onChange={e=>setHDia(e.target.value)} min="1" max="24" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
-                    <div><label className="block text-gray-700 font-semibold mb-2">Días por semana</label><input type="number" value={dSemana} onChange={e=>setDSemana(e.target.value)} min="1" max="7" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
+                <div className="mb-5">
+                    <label className="block text-gray-700 font-semibold mb-2">¿Cómo indicas tu jornada?</label>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                        <button onClick={()=>cambiarModoJornada('dia')} className={`p-3 rounded-lg border-2 transition-all ${modoJornada==='dia'?'border-emerald-500 bg-emerald-50 text-emerald-700':'border-gray-300 hover:border-emerald-300'}`}><div className="font-semibold">Horas por día y días por semana</div></button>
+                        <button onClick={()=>cambiarModoJornada('semana')} className={`p-3 rounded-lg border-2 transition-all ${modoJornada==='semana'?'border-emerald-500 bg-emerald-50 text-emerald-700':'border-gray-300 hover:border-emerald-300'}`}><div className="font-semibold">Horas totales por semana</div></button>
+                    </div>
+                    {modoJornada==='dia' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><label className="block text-gray-700 font-semibold mb-2">Horas por día</label><input type="number" value={hDia} onChange={e=>setHDia(e.target.value)} min="1" max="24" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
+                            <div><label className="block text-gray-700 font-semibold mb-2">Días por semana</label><input type="number" value={dSemana} onChange={e=>setDSemana(e.target.value)} min="1" max="7" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
+                        </div>
+                    ) : (
+                        <div><label className="block text-gray-700 font-semibold mb-2">Horas totales por semana</label><input type="number" value={hSemana} onChange={e=>setHSemana(e.target.value)} min="1" max="168" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none"/></div>
+                    )}
+                    <p className="text-xs text-gray-500 mt-2">Solo se usa para mostrar el valor por hora{modoJornada==='dia' ? ' y por día' : ''}; no cambia el neto. Jornada máxima legal: 42 horas por semana.</p>
                 </div>
                 <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Nivel de Riesgo ARL</label>
                     <select value={nivelARL} onChange={e=>setNivelARL(parseInt(e.target.value))} className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:outline-none">
@@ -322,10 +340,10 @@ function EmpleadoContrato() {
                     <p className="text-5xl font-bold">{formatCOP(neto())}</p>
                     <p className="text-sm opacity-90 mt-2">Después de todos los descuentos de ley</p>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className={`grid grid-cols-2 ${modoJornada==='dia' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3`}>
                     <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-indigo-500"><div className="text-sm text-gray-500">Quincenal</div><div className="text-lg font-bold">{formatCOP(neto()/2)}</div></div>
                     <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-purple-500"><div className="text-sm text-gray-500">Semanal</div><div className="text-lg font-bold">{formatCOP(neto()/4.33)}</div></div>
-                    <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-pink-500"><div className="text-sm text-gray-500">Diario</div><div className="text-lg font-bold">{formatCOP(porDia())}</div></div>
+                    {modoJornada==='dia' && <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-pink-500"><div className="text-sm text-gray-500">Diario</div><div className="text-lg font-bold">{formatCOP(porDia())}</div></div>}
                     <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-orange-500"><div className="text-sm text-gray-500">Por Hora</div><div className="text-lg font-bold">{formatCOP(porHora())}</div></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
