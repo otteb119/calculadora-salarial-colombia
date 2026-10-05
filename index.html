@@ -574,11 +574,13 @@ function Liquidacion() {
         const salDia = salProm/30;
 
         const inicioAnio = new Date(e.getFullYear()+'-01-01T12:00:00');
-        const diasAnio = days360(inicioAnio, e);
+        // Si ingresó dentro del año, las cesantías se cuentan desde su ingreso y no desde el 1 de enero
+        const diasAnio = days360(s > inicioAnio ? s : inicioAnio, e);
 
         const mes = e.getMonth()+1;
         const inicioSem = mes<=6 ? new Date(e.getFullYear()+'-01-01T12:00:00') : new Date(e.getFullYear()+'-07-01T12:00:00');
-        const diasSem = days360(inicioSem, e);
+        // Igual para la prima: desde el ingreso si fue posterior al inicio del semestre
+        const diasSem = days360(s > inicioSem ? s : inicioSem, e);
 
         const vac = parseFloat(diasVac)*salDia;
         const prima = salProm*diasSem/360;
