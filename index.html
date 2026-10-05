@@ -536,6 +536,8 @@ function Independiente() {
 function Liquidacion() {
     const [inicio, setInicio] = useState('');
     const [fin, setFin] = useState('');
+    const [tipoContrato, setTipoContrato] = useState('indefinido');
+    const [finPactado, setFinPactado] = useState('');
     const [salario, setSalario] = useState('');
     const [tieneBono, setTieneBono] = useState(false);
     const [bonos, setBonos] = useState([{id:1, tipo:'porcentaje', valor:'15', meses:'10'}]);
@@ -563,6 +565,7 @@ function Liquidacion() {
         const e = new Date(fin+'T12:00:00');
         if(isNaN(s)||isNaN(e)||s>=e){ alert('Ingresa fechas válidas'); return; }
         if(unformat(salario)<=0){ alert('Ingresa un salario válido'); return; }
+        if(tipoContrato==='fijo' && isNaN(new Date(finPactado+'T12:00:00'))){ alert('Ingresa la fecha de terminación pactada del contrato'); return; }
         setMostrar(true);
     };
 
@@ -615,7 +618,13 @@ function Liquidacion() {
 
         const esBaja = salProm < CONFIG.SMMLV*10;
         let indem = 0;
-        if(totalDias>0){
+        let diasRestantes = 0;
+        if(tipoContrato==='fijo'){
+            // Art. 64 CST (término fijo): salarios del tiempo que falta para cumplir el plazo pactado
+            const pf = new Date(finPactado+'T12:00:00');
+            diasRestantes = !isNaN(pf) && pf > e ? days360(e, pf) - 1 : 0;
+            indem = diasRestantes*salDia;
+        } else if(totalDias>0){
             // Art. 64 CST (contrato indefinido): primer año (o fracción) = 30 días (<10 SMMLV) o 20 días (>=10 SMMLV), completos.
             // Por cada año siguiente, 20 o 15 días adicionales, proporcional por fracción.
             indem += (esBaja?30:20)*salDia;
@@ -623,7 +632,7 @@ function Liquidacion() {
         }
 
         const sub = vac+prima+ces+intCes;
-        return { totalDias, anosComp, mesesParc, diasRP, salProm, salDia, aux, diasAnio, diasSem, vac, prima, ces, intCes, indem, sub, esBaja };
+        return { totalDias, anosComp, mesesParc, diasRP, salProm, salDia, aux, diasAnio, diasSem, vac, prima, ces, intCes, indem, diasRestantes, sub, esBaja };
     };
 
     const r = mostrar ? resultado() : null;
@@ -634,10 +643,20 @@ function Liquidacion() {
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Datos para Liquidación</h2>
                 <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded mb-5"><p className="text-sm text-red-800"><strong>Calcula tu liquidación</strong> según si fue renuncia voluntaria o despido sin justa causa. Incluye prima, cesantías, vacaciones e indemnización.</p></div>
 
+                <div className="mb-5">
+                    <label className="block text-gray-700 font-semibold mb-2">Tipo de contrato</label>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={()=>setTipoContrato('indefinido')} className={`p-3 rounded-lg border-2 transition-all ${tipoContrato==='indefinido'?'border-red-500 bg-red-50 text-red-700':'border-gray-300 hover:border-red-300'}`}><div className="font-semibold">Término Indefinido</div></button>
+                        <button onClick={()=>setTipoContrato('fijo')} className={`p-3 rounded-lg border-2 transition-all ${tipoContrato==='fijo'?'border-red-500 bg-red-50 text-red-700':'border-gray-300 hover:border-red-300'}`}><div className="font-semibold">Término Fijo</div></button>
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
                     <div><label className="block text-gray-700 font-semibold mb-2">Fecha de ingreso</label><input type="date" value={inicio} onChange={e=>setInicio(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"/></div>
                     <div><label className="block text-gray-700 font-semibold mb-2">Fecha de retiro</label><input type="date" value={fin} onChange={e=>setFin(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"/></div>
                 </div>
+
+                {tipoContrato==='fijo' && <div className="mb-5"><label className="block text-gray-700 font-semibold mb-2">Fecha de terminación pactada del contrato</label><input type="date" value={finPactado} onChange={e=>setFinPactado(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"/><p className="text-xs text-gray-500 mt-1">Si te despiden sin justa causa, la indemnización es el salario del tiempo que falta para esa fecha.</p></div>}
 
                 <div className="mb-5">
                     <label className="block text-gray-700 font-semibold mb-2">Salario base mensual</label>
@@ -754,7 +773,7 @@ function Liquidacion() {
                             <span className="font-bold text-green-700 text-lg">{formatCOP(r.sub)}</span>
                         </div>
                         <div className="flex justify-between p-3 bg-red-50 rounded border-2 border-red-200">
-                            <div><span className="font-semibold text-red-700">Indemnización</span><p className="text-xs text-gray-500">{r.esBaja ? '<10 SMMLV: 30+20 días' : '≥10 SMMLV: 20+15 días'}</p></div>
+                            <div><span className="font-semibold text-red-700">Indemnización</span><p className="text-xs text-gray-500">{tipoContrato==='fijo' ? `Término fijo: ${r.diasRestantes} día(s) restantes del contrato` : (r.esBaja ? '<10 SMMLV: 30+20 días' : '≥10 SMMLV: 20+15 días')}</p></div>
                             <span className="font-bold text-red-600 text-lg">{formatCOP(r.indem)}</span>
                         </div>
                     </div>
