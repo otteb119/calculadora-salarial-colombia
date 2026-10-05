@@ -80,6 +80,7 @@ function EmpleadoContrato() {
     const [tipoContrato, setTipoContrato] = useState('indefinido');
     const [duracion, setDuracion] = useState('12');
     const [nivelARL, setNivelARL] = useState(1);
+    const [exonerado, setExonerado] = useState(true);
     const [bonos, setBonos] = useState([]);
     const [descuentos, setDescuentos] = useState([]);
     const [horasExtras, setHorasExtras] = useState([]);
@@ -123,11 +124,12 @@ function EmpleadoContrato() {
     const ret = () => { const a=sEmp()+pEmp()+fsp(); const n=tDev()-a; const re=Math.min(n*0.25,(790/12)*CONFIG.UVT); /* renta exenta 25%, tope 790 UVT/año (Art. 206 num. 10 E.T.) */ return calcRetencion(Math.max(0,n-re)); };
     const tDed = () => sEmp()+pEmp()+fsp()+ret();
     const neto = () => tDev()+aux()+totalBonosNoConst()-tDed()-totalDescNomina();
-    const sEmpr = () => tDev()*CONFIG.SALUD_EMPLEADOR;
+    const sEmpr = () => exon() ? 0 : tDev()*CONFIG.SALUD_EMPLEADOR;
     const pEmpr = () => tDev()*CONFIG.PENSION_EMPLEADOR;
     const arl = () => tDev()*CONFIG.PORCENTAJES_ARL[nivelARL];
     const caja = () => tDev()*CONFIG.CAJA_COMPENSACION;
-    const exon = () => sBase() < CONFIG.SMMLV*10;
+    // Art. 114-1 E.T.: exoneración de salud (8.5%), SENA e ICBF del empleador para quienes devengan menos de 10 SMMLV
+    const exon = () => exonerado && tDev() < CONFIG.SMMLV*10;
     const icbf = () => exon()?0:tDev()*CONFIG.ICBF;
     const sena = () => exon()?0:tDev()*CONFIG.SENA;
     const tEmpr = () => sEmpr()+pEmpr()+arl()+caja()+icbf()+sena();
@@ -276,6 +278,13 @@ function EmpleadoContrato() {
                         <option value="1">Riesgo I - Mínimo (0.522%) - Oficinas</option><option value="2">Riesgo II - Bajo (1.044%)</option><option value="3">Riesgo III - Medio (2.436%)</option><option value="4">Riesgo IV - Alto (4.35%)</option><option value="5">Riesgo V - Máximo (6.96%)</option>
                     </select>
                 </div>
+                <div className="mb-5">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={exonerado} onChange={e=>setExonerado(e.target.checked)} className="w-5 h-5 accent-emerald-600"/>
+                        <span className="font-semibold text-gray-700">El empleador está exonerado de salud, SENA e ICBF</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">Art. 114-1 E.T.: aplica a personas jurídicas y a personas naturales con 2 o más trabajadores, para salarios menores a 10 SMMLV. Desmárcalo si no aplica.</p>
+                </div>
                 <button onClick={calcular} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Calcular Nómina</button>
             </div>
 
@@ -305,7 +314,7 @@ function EmpleadoContrato() {
                         <div className="flex justify-between p-3 bg-green-100 rounded border-2 border-green-300"><span className="font-semibold">= Total devengado</span><span className="font-bold text-green-700 text-lg">{formatCOP(tDev()+aux())}</span></div>
                     </div></div>
                     <div className="mb-6"><h3 className="font-bold text-red-700 mb-3">Descuentos del Empleado</h3><div className="space-y-2">
-                        <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Salud (4%)</span><p className="text-xs text-gray-500">Empresa paga 8.5% adicional</p></div><span className="font-bold text-red-600">-{formatCOP(sEmp())}</span></div>
+                        <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Salud (4%)</span><p className="text-xs text-gray-500">{exon() ? 'Empresa exonerada del 8.5% (Art. 114-1 E.T.)' : 'Empresa paga 8.5% adicional'}</p></div><span className="font-bold text-red-600">-{formatCOP(sEmp())}</span></div>
                         <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Pensión (4%)</span><p className="text-xs text-gray-500">Empresa paga 12% adicional</p></div><span className="font-bold text-red-600">-{formatCOP(pEmp())}</span></div>
                         {fsp()>0 && <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Fondo Solidaridad Pensional ({((fsp()/tDev())*100).toFixed(1)}%)</span><p className="text-xs text-gray-500">Más de 4 SMMLV</p></div><span className="font-bold text-red-600">-{formatCOP(fsp())}</span></div>}
                         {ret()>0 && <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Retención en la fuente ({((ret()/tDev())*100).toFixed(2)}%)</span><p className="text-xs text-gray-500">Anticipo impuesto renta</p></div><span className="font-bold text-red-600">-{formatCOP(ret())}</span></div>}
@@ -317,7 +326,7 @@ function EmpleadoContrato() {
                         <div className="flex justify-between p-3 bg-orange-100 rounded border-2 border-orange-300"><span className="font-semibold">Total descuentos nómina</span><span className="font-bold text-orange-700">-{formatCOP(totalDescNomina())}</span></div>
                     </div></div>}
                     <div className="mb-6"><h3 className="font-bold text-indigo-700 mb-3">Aportes del Empleador</h3><div className="space-y-2">
-                        <div className="flex justify-between p-3 bg-indigo-50 rounded"><span>Salud (8.5%)</span><span className="font-bold">{formatCOP(sEmpr())}</span></div>
+                        {exon() ? <div className="flex justify-between p-3 bg-green-50 rounded"><span>Salud (8.5%)</span><span className="font-bold text-green-600">Exonerado</span></div> : <div className="flex justify-between p-3 bg-indigo-50 rounded"><span>Salud (8.5%)</span><span className="font-bold">{formatCOP(sEmpr())}</span></div>}
                         <div className="flex justify-between p-3 bg-indigo-50 rounded"><span>Pensión (12%)</span><span className="font-bold">{formatCOP(pEmpr())}</span></div>
                         <div className="flex justify-between p-3 bg-indigo-50 rounded"><span>ARL Nivel {nivelARL}</span><span className="font-bold">{formatCOP(arl())}</span></div>
                         <div className="flex justify-between p-3 bg-indigo-50 rounded"><span>Caja compensación (4%)</span><span className="font-bold">{formatCOP(caja())}</span></div>
