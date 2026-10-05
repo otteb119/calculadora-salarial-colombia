@@ -118,15 +118,18 @@ function EmpleadoContrato() {
     };
     const tDev = () => sBase() + heVal();
     const aux = () => sBase() <= CONFIG.TOPE_AUXILIO ? CONFIG.AUXILIO_TRANSPORTE : 0;
-    const sEmp = () => tDev() * CONFIG.SALUD_EMPLEADO;
-    const pEmp = () => tDev() * CONFIG.PENSION_EMPLEADO;
-    const fsp = () => calcularFSP(tDev());
+    // Ley 1393 de 2010, art. 30: los pagos no salariales que excedan el 40% de la remuneración total suman al IBC de salud, pensión y ARL
+    const excesoNoSalarial = () => Math.max(0, totalBonosNoConst() - 0.40*(tDev()+totalBonosNoConst()));
+    const ibcSS = () => tDev() + excesoNoSalarial();
+    const sEmp = () => ibcSS() * CONFIG.SALUD_EMPLEADO;
+    const pEmp = () => ibcSS() * CONFIG.PENSION_EMPLEADO;
+    const fsp = () => calcularFSP(ibcSS());
     const ret = () => { /* los bonos no constitutivos de salario siguen siendo ingreso laboral gravable */ const a=sEmp()+pEmp()+fsp(); const n=tDev()+totalBonosNoConst()-a; const re=Math.min(n*0.25,(790/12)*CONFIG.UVT); /* renta exenta 25%, tope 790 UVT/año (Art. 206 num. 10 E.T.) */ return calcRetencion(Math.max(0,n-re)); };
     const tDed = () => sEmp()+pEmp()+fsp()+ret();
     const neto = () => tDev()+aux()+totalBonosNoConst()-tDed()-totalDescNomina();
-    const sEmpr = () => exon() ? 0 : tDev()*CONFIG.SALUD_EMPLEADOR;
-    const pEmpr = () => tDev()*CONFIG.PENSION_EMPLEADOR;
-    const arl = () => tDev()*CONFIG.PORCENTAJES_ARL[nivelARL];
+    const sEmpr = () => exon() ? 0 : ibcSS()*CONFIG.SALUD_EMPLEADOR;
+    const pEmpr = () => ibcSS()*CONFIG.PENSION_EMPLEADOR;
+    const arl = () => ibcSS()*CONFIG.PORCENTAJES_ARL[nivelARL];
     const caja = () => tDev()*CONFIG.CAJA_COMPENSACION;
     // Art. 114-1 E.T.: exoneración de salud (8.5%), SENA e ICBF del empleador para quienes devengan menos de 10 SMMLV
     const exon = () => exonerado && tDev() < CONFIG.SMMLV*10;
@@ -320,7 +323,7 @@ function EmpleadoContrato() {
                         {ret()>0 && <div className="flex justify-between p-3 bg-red-50 rounded"><div><span>Retención en la fuente ({((ret()/tDev())*100).toFixed(2)}%)</span><p className="text-xs text-gray-500">Anticipo impuesto renta</p></div><span className="font-bold text-red-600">-{formatCOP(ret())}</span></div>}
                         <div className="flex justify-between p-3 bg-red-100 rounded border-2 border-red-300"><span className="font-semibold">= Total descuentos</span><span className="font-bold text-red-700">-{formatCOP(tDed())}</span></div>
                     </div></div>
-                    {totalBonosNoConst()>0 && <div className="mb-6"><h3 className="font-bold text-blue-700 mb-3">Bonificaciones NO Constitutivas</h3><div className="flex justify-between p-3 bg-blue-50 rounded"><span>Total bonos no constitutivos (sin descuentos)</span><span className="font-bold text-blue-600">+{formatCOP(totalBonosNoConst())}</span></div></div>}
+                    {totalBonosNoConst()>0 && <div className="mb-6"><h3 className="font-bold text-blue-700 mb-3">Bonificaciones NO Constitutivas</h3><div className="flex justify-between p-3 bg-blue-50 rounded"><span>Total bonos no constitutivos (sin descuentos)</span><span className="font-bold text-blue-600">+{formatCOP(totalBonosNoConst())}</span></div>{excesoNoSalarial()>0 && <p className="text-xs text-blue-700 mt-2">⚠ Los pagos no salariales superan el 40% de tu remuneración total. El exceso ({formatCOP(excesoNoSalarial())}) suma al IBC de salud y pensión (Ley 1393 de 2010, art. 30).</p>}</div>}
                     {totalDescNomina()>0 && <div className="mb-6"><h3 className="font-bold text-orange-700 mb-3">Descuentos de Nómina</h3><div className="space-y-2">
                         {descuentos.map(d => { const val = d.tipo==='porcentaje' ? unformat(salario)*(parseFloat(d.valor)||0)/100 : unformat(d.valor); return val>0 ? <div key={d.id} className="flex justify-between p-3 bg-orange-50 rounded"><span>{d.nombre || 'Descuento'} {d.tipo==='porcentaje' ? `(${d.valor}%)` : ''}</span><span className="font-bold text-orange-600">-{formatCOP(val)}</span></div> : null; })}
                         <div className="flex justify-between p-3 bg-orange-100 rounded border-2 border-orange-300"><span className="font-semibold">Total descuentos nómina</span><span className="font-bold text-orange-700">-{formatCOP(totalDescNomina())}</span></div>
