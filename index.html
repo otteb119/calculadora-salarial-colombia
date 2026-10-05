@@ -34,6 +34,27 @@ const CONFIG = {
     PORCENTAJES_ARL: { 1: 0.00522, 2: 0.01044, 3: 0.02436, 4: 0.04350, 5: 0.06960 }
 };
 
+// Jornada ordinaria y recargos según la fecha (Ley 2101 de 2021 y Ley 2466 de 2025, art. 14)
+// Divisor mensual de la hora ordinaria: 44 h/semana (220) hasta el 14-jul-2026; 42 h/semana (210) desde el 15-jul-2026.
+function divisorHora(f = new Date()) { return f >= new Date('2026-07-15T00:00:00') ? 210 : 220; }
+// Recargo dominical/festivo: 80% desde 1-jul-2025, 90% desde 1-jul-2026, 100% desde 1-jul-2027.
+function recargoDominical(f = new Date()) {
+    if (f >= new Date('2027-07-01T00:00:00')) return 1.0;
+    if (f >= new Date('2026-07-01T00:00:00')) return 0.9;
+    if (f >= new Date('2025-07-01T00:00:00')) return 0.8;
+    return 0.75;
+}
+// Porcentaje adicional sobre la hora ordinaria para cada tipo de hora extra (extra + recargo dominical cuando aplica)
+function factoresHE(f = new Date()) {
+    const d = recargoDominical(f);
+    return { diurna: 0.25, nocturna: 0.75, 'dominical-diurna': 0.25 + d, 'dominical-nocturna': 0.75 + d };
+}
+const nombreHE = (tipo, f = new Date()) => {
+    const pct = Math.round(factoresHE(f)[tipo] * 100);
+    const base = { diurna: 'Diurna', nocturna: 'Nocturna', 'dominical-diurna': 'Dom. Diurna', 'dominical-nocturna': 'Dom. Nocturna' }[tipo];
+    return `${base} (+${pct}%)`;
+};
+
 const formatCOP = (n) => new Intl.NumberFormat('es-CO', { style:'currency', currency:'COP', minimumFractionDigits:0, maximumFractionDigits:0 }).format(Math.round(n));
 const formatInput = (v) => v.replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 const unformat = (v) => parseFloat((v||'').replace(/\./g,'')) || 0;
@@ -85,15 +106,14 @@ function EmpleadoContrato() {
 
     const sBase = () => unformat(salario) + totalBonosConst();
     const heVal = () => {
-        const vh = sBase()/240;
-        const r = {diurna:0.25, nocturna:0.75, 'dominical-diurna':1, 'dominical-nocturna':1.5};
+        const vh = sBase()/divisorHora();
+        const r = factoresHE();
         return horasExtras.reduce((sum, h) => sum + vh*(1+r[h.tipo])*(parseInt(h.horas)||0), 0);
     };
     const heDetalle = () => {
-        const vh = sBase()/240;
-        const r = {diurna:0.25, nocturna:0.75, 'dominical-diurna':1, 'dominical-nocturna':1.5};
-        const nombres = {diurna:'Diurna (+25%)', nocturna:'Nocturna (+75%)', 'dominical-diurna':'Dom. Diurna (+100%)', 'dominical-nocturna':'Dom. Nocturna (+150%)'};
-        return horasExtras.map(h => ({...h, valor: vh*(1+r[h.tipo])*(parseInt(h.horas)||0), nombre: nombres[h.tipo]}));
+        const vh = sBase()/divisorHora();
+        const r = factoresHE();
+        return horasExtras.map(h => ({...h, valor: vh*(1+r[h.tipo])*(parseInt(h.horas)||0), nombre: nombreHE(h.tipo)}));
     };
     const tDev = () => sBase() + heVal();
     const aux = () => sBase() <= CONFIG.TOPE_AUXILIO ? CONFIG.AUXILIO_TRANSPORTE : 0;
@@ -235,10 +255,10 @@ function EmpleadoContrato() {
                                     <div>
                                         <label className="block text-gray-600 text-xs mb-1">Tipo</label>
                                         <select value={he.tipo} onChange={e=>actualizarHoraExtra(he.id,'tipo',e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:border-amber-500 focus:outline-none">
-                                            <option value="diurna">Diurna (+25%)</option>
-                                            <option value="nocturna">Nocturna (+75%)</option>
-                                            <option value="dominical-diurna">Dominical Diurna (+100%)</option>
-                                            <option value="dominical-nocturna">Dominical Nocturna (+150%)</option>
+                                            <option value="diurna">{nombreHE('diurna')}</option>
+                                            <option value="nocturna">{nombreHE('nocturna')}</option>
+                                            <option value="dominical-diurna">Dominical {nombreHE('dominical-diurna').replace('Dom. ','')}</option>
+                                            <option value="dominical-nocturna">Dominical {nombreHE('dominical-nocturna').replace('Dom. ','')}</option>
                                         </select>
                                     </div>
                                 </div>
