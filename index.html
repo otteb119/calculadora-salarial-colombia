@@ -590,8 +590,10 @@ function Liquidacion() {
         const esBaja = salProm < CONFIG.SMMLV*10;
         let indem = 0;
         if(totalDias>0){
-            if(anosComp>=1){ indem+=(esBaja?30:20)*salDia; if(totalDias>360) indem+=(totalDias-360)/360*(esBaja?20:15)*salDia; }
-            else { indem+=(totalDias/360)*(esBaja?30:20)*salDia; }
+            // Art. 64 CST (contrato indefinido): primer año (o fracción) = 30 días (<10 SMMLV) o 20 días (>=10 SMMLV), completos.
+            // Por cada año siguiente, 20 o 15 días adicionales, proporcional por fracción.
+            indem += (esBaja?30:20)*salDia;
+            if(totalDias>360) indem += (totalDias-360)/360*(esBaja?20:15)*salDia;
         }
 
         const sub = vac+prima+ces+intCes;
