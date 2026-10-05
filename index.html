@@ -563,10 +563,17 @@ function Liquidacion() {
     const [tipoContrato, setTipoContrato] = useState('indefinido');
     const [finPactado, setFinPactado] = useState('');
     const [salario, setSalario] = useState('');
+    const [integral, setIntegral] = useState(false);
     const [tieneBono, setTieneBono] = useState(false);
     const [bonos, setBonos] = useState([{id:1, tipo:'porcentaje', valor:'15', meses:'10'}]);
     const [diasVac, setDiasVac] = useState('15');
     const [mostrar, setMostrar] = useState(false);
+
+    // Salario integral (Art. 132 CST): mínimo 13 SMMLV; solo se puede activar si el salario llega a ese mínimo
+    const minIntegral = CONFIG.SALARIO_INTEGRAL_MIN_SMMLV*CONFIG.SMMLV;
+    const puedeIntegral = () => unformat(salario) >= minIntegral;
+    const esInt = () => integral && puedeIntegral();
+    const cambiarSalario = (v) => { setSalario(v); if(unformat(v) < minIntegral) setIntegral(false); };
 
     const agregarBono = () => setBonos([...bonos, {id:Date.now(), tipo:'porcentaje', valor:'', meses:'12'}]);
     const eliminarBono = (id) => setBonos(bonos.filter(b=>b.id!==id));
@@ -634,11 +641,12 @@ function Liquidacion() {
 
         const vac = Math.max(0, parseFloat(diasVac)||0)*salDia;
         // Quien devenga hasta 2 SMMLV recibe auxilio de transporte, que hace parte de la base de prima y cesantías (no de vacaciones)
-        const aux = salProm <= 2*CONFIG.SMMLV ? CONFIG.AUXILIO_TRANSPORTE : 0;
+        const aux = (!esInt() && salProm <= 2*CONFIG.SMMLV) ? CONFIG.AUXILIO_TRANSPORTE : 0;
         const basePr = salProm + aux;
-        const prima = basePr*diasSem/360;
-        const ces = basePr*diasAnio/360;
-        const intCes = ces*0.12*diasAnio/360;
+        // Con salario integral, prima, cesantías e intereses ya están incluidos en el factor prestacional (30%)
+        const prima = esInt() ? 0 : basePr*diasSem/360;
+        const ces = esInt() ? 0 : basePr*diasAnio/360;
+        const intCes = esInt() ? 0 : ces*0.12*diasAnio/360;
 
         const esBaja = salProm < CONFIG.SMMLV*10;
         let indem = 0;
@@ -685,7 +693,15 @@ function Liquidacion() {
                 <div className="mb-5">
                     <label className="block text-gray-700 font-semibold mb-2">Salario base mensual</label>
                     <div className="relative"><span className="absolute left-3 top-3 text-gray-500 text-lg">$</span>
-                    <input type="text" value={salario} onChange={e=>setSalario(formatInput(e.target.value))} placeholder="Ej: 1.750.905" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-red-500 focus:outline-none"/></div>
+                    <input type="text" value={salario} onChange={e=>cambiarSalario(formatInput(e.target.value))} placeholder="Ej: 1.750.905" className="w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:border-red-500 focus:outline-none"/></div>
+                </div>
+
+                <div className="mb-5">
+                    <label className={`flex items-center gap-3 ${puedeIntegral() ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                        <input type="checkbox" checked={esInt()} disabled={!puedeIntegral()} onChange={e=>setIntegral(e.target.checked)} className="w-5 h-5 accent-red-500"/>
+                        <span className="font-semibold text-gray-700">Salario integral</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">{puedeIntegral() ? 'No se liquidan prima, cesantías ni intereses (ya están en el 30% del salario integral). Sí se liquidan las vacaciones pendientes y la indemnización.' : `Disponible desde 13 SMMLV (${formatCOP(minIntegral)}). Con un salario menor no se puede pactar salario integral.`}</p>
                 </div>
 
                 <div className="mb-5">
